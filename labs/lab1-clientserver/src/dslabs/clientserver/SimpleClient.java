@@ -1,6 +1,7 @@
 package dslabs.clientserver;
 
 import com.google.common.base.Objects;
+import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
@@ -46,7 +47,7 @@ class SimpleClient extends Node implements Client {
        -----------------------------------------------------------------------*/
     @Override
     public synchronized void sendCommand(Command command) {
-        request = new Request(command, seqNum);
+        request = new Request(new AMOCommand(seqNum, this.address(), command));
         result = null;
 
         send(request, serverAddress);
@@ -71,8 +72,8 @@ class SimpleClient extends Node implements Client {
         Message Handlers
        -----------------------------------------------------------------------*/
     private synchronized void handleReply(Reply m, Address sender) {
-        if (Objects.equal(request.sequenceNum(), m.sequenceNum())) {
-            result = m.result();
+        if (Objects.equal(request.command().num(), m.result().num())) {
+            result = m.result().result();
             notify();
         }
     }

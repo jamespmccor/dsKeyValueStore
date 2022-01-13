@@ -1,8 +1,11 @@
 package dslabs.atmostonce;
 
+import dslabs.framework.Address;
 import dslabs.framework.Application;
 import dslabs.framework.Command;
 import dslabs.framework.Result;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NonNull;
@@ -17,6 +20,7 @@ public final class AMOApplication<T extends Application>
     @Getter @NonNull private final T application;
 
     // Your code here...
+    private final Map<Address, AMOResult> clientMap = new HashMap<>();
 
     @Override
     public AMOResult execute(Command command) {
@@ -26,8 +30,17 @@ public final class AMOApplication<T extends Application>
 
         AMOCommand amoCommand = (AMOCommand) command;
 
-        // Your code here...
-        return null;
+        if (alreadyExecuted(amoCommand)) {
+            if (amoCommand.num() < clientMap.get(amoCommand.sender()).num()) {
+                return null;
+            } else {
+                return clientMap.get(amoCommand.sender());
+            }
+        }
+
+        AMOResult res = new AMOResult(amoCommand.num(), application.execute(amoCommand.command()));
+        clientMap.put(amoCommand.sender(), res);
+        return res;
     }
 
     public Result executeReadOnly(Command command) {
@@ -43,7 +56,7 @@ public final class AMOApplication<T extends Application>
     }
 
     public boolean alreadyExecuted(AMOCommand amoCommand) {
-        // Your code here...
-        return false;
+        return clientMap.containsKey(amoCommand.sender()) &&
+                clientMap.get(amoCommand.sender()).num() >= amoCommand.num();
     }
 }

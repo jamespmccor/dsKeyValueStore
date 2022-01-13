@@ -1,11 +1,10 @@
 package dslabs.clientserver;
 
+import dslabs.atmostonce.AMOApplication;
+import dslabs.atmostonce.AMOResult;
 import dslabs.framework.Address;
 import dslabs.framework.Application;
 import dslabs.framework.Node;
-import dslabs.framework.Result;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -17,8 +16,7 @@ import lombok.ToString;
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 class SimpleServer extends Node {
-    private Application app;
-    private Map<Address, Reply> clientMap;
+    private final AMOApplication<Application> app;
 
     /* -------------------------------------------------------------------------
         Construction and Initialization
@@ -26,8 +24,7 @@ class SimpleServer extends Node {
     public SimpleServer(Address address, Application app) {
         super(address);
 
-        this.app = app;
-        this.clientMap = new HashMap<>();
+        this.app = new AMOApplication<>(app);
     }
 
     @Override
@@ -39,18 +36,9 @@ class SimpleServer extends Node {
         Message Handlers
        -----------------------------------------------------------------------*/
     private void handleRequest(Request m, Address sender) {
-        if (clientMap.containsKey(sender)) {
-            if (clientMap.get(sender).sequenceNum() == m.sequenceNum()) {
-                // must mean resend
-                send(clientMap.get(sender), sender);
-                return;
-            } else if (clientMap.get(sender).sequenceNum() > m.sequenceNum()) {
-                // old request, ignore
-                return;
-            }
+        AMOResult r = app.execute(m.command());
+        if (r != null) {
+            send(new Reply(r), sender);
         }
-        Reply reply = new Reply(app.execute(m.command()), m.sequenceNum());
-        clientMap.put(sender, reply);
-        send(reply, sender);
     }
 }

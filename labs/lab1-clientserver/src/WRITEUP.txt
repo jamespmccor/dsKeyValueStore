@@ -1,11 +1,29 @@
 Lab 1 Writeup
 
-Name, NetID: 
+Name, NetID: Jevin Gu, jevin
 
 Brief description of design:
 
+- For part 1:
+  - Basically just copied the format of PingApplication where you typecast
+    a message into a specific message type with variables and then returned a
+    result specified in the README
+- For part 2:
+  - Pretty much just copied the format of PingClient and PingServer since the
+    lab 0 demo showed how to work with clients/servers/timers on an at-least-once
+    messaging format. Used the hints from the README to setup the messaging and
+    other boilerplate.
+- For part 3:
+  - Followed the guidance in class to keep track of a mapping of
+    sender -> message number, result. Messages are numbered upwards on client
+    side and are passed to the server along with the client address. The server
+    keeps track of the highest message number for each client and will hold the
+    current message number response in memory. It is only retransmitted when
+    a request with the same number is received and discarded when a larger
+    request comes in.
 
-Hours spent on the lab: 
+
+Hours spent on the lab: 3
 
 
-Any feedback about the lab:
+Any feedback about the lab: N/A it was pretty self-explanatory
