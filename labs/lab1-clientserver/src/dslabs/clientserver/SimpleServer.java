@@ -3,6 +3,9 @@ package dslabs.clientserver;
 import dslabs.framework.Address;
 import dslabs.framework.Application;
 import dslabs.framework.Node;
+import dslabs.framework.Result;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -14,7 +17,8 @@ import lombok.ToString;
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 class SimpleServer extends Node {
-    // Your code here...
+    private Application app;
+    private Map<Address, Reply> clientMap;
 
     /* -------------------------------------------------------------------------
         Construction and Initialization
@@ -22,7 +26,8 @@ class SimpleServer extends Node {
     public SimpleServer(Address address, Application app) {
         super(address);
 
-        // Your code here...
+        this.app = app;
+        this.clientMap = new HashMap<>();
     }
 
     @Override
@@ -34,6 +39,18 @@ class SimpleServer extends Node {
         Message Handlers
        -----------------------------------------------------------------------*/
     private void handleRequest(Request m, Address sender) {
-        // Your code here...
+        if (clientMap.containsKey(sender)) {
+            if (clientMap.get(sender).sequenceNum() == m.sequenceNum()) {
+                // must mean resend
+                send(clientMap.get(sender), sender);
+                return;
+            } else if (clientMap.get(sender).sequenceNum() > m.sequenceNum()) {
+                // old request, ignore
+                return;
+            }
+        }
+        Reply reply = new Reply(app.execute(m.command()), m.sequenceNum());
+        clientMap.put(sender, reply);
+        send(reply, sender);
     }
 }
