@@ -25,5 +25,4 @@ Brief description of design:
 
 Hours spent on the lab: 3
 
-
 Any feedback about the lab: N/A it was pretty self-explanatory
