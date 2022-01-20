@@ -20,6 +20,7 @@ class ViewServer extends Node {
     static final int STARTUP_VIEWNUM = 0;
     private static final int INITIAL_VIEWNUM = 1;
 
+    private View prevView;
     private View curView;
     private View nextView;
     private final HashMap<Address, Integer> pings;
@@ -46,44 +47,42 @@ class ViewServer extends Node {
     private void handlePing(Ping m, Address sender) {
         // record all pings (because they are therefore alive)
         // but make sure to take the largest one or default to startup (smallest)
-        pings.put(sender, Math.max(m.viewNum(),
-                pings.getOrDefault(sender, STARTUP_VIEWNUM)));
-        if (nextView != null && nextView.primary().equals(sender) && m.viewNum() ==
-                nextView.viewNum()) {
-            curView = nextView;
-            nextView = null;
+        pings.put(sender, 2);
+        if (nextView != null && nextView.primary().equals(sender) &&
+                m.viewNum() == nextView.viewNum()) {
+            nextView();
         }
-
-        updateViewState();
 
         // no new view; we just send cur view
-        if (nextView == null) {
+        if (m.viewNum() == STARTUP_VIEWNUM && nextView == null) {
+            updateViewState();
+            send(new ViewReply(nextView), sender);
+        } else if (curView.backup() == null && nextView == null) {
+            updateViewState();
+            send(new ViewReply(nextView), sender);
+        } if (nextView == null) {
             send(new ViewReply(curView), sender);
-            return;
-        }
+        } else if (!nextView.primary().equals(curView.primary()) &&
+                // view must change
 
-        // view must change
-
-        // since the only case the primary changes is when its cut off from network
-        // then theres no point signalling to it that the primary has changed
-        // if next != cur then just tell next its prim now
-        if (!nextView.primary().equals(curView.primary()) &&
+                // since the only case the primary changes is when its cut off from network
+                // then theres no point signalling to it that the primary has changed
+                // if next != cur then just tell next its prim now
                 sender.equals(nextView.primary()) ||
                 // if the backup changes then the primary must exist; notify cur primary
                 // of new view state before confirming new update
-                nextView.backup() != null && !nextView.backup().equals(curView.backup()) &&
+                nextView.backup() != null &&
+                        !nextView.backup().equals(curView.backup()) &&
                         sender.equals(curView.primary())) {
 
             send(new ViewReply(nextView), sender);
-            return;
+        } else {
+            send(new ViewReply(curView), sender);
         }
-        send(new ViewReply(curView), sender);
     }
 
     private void handleGetView(GetView m, Address sender) {
-        View v = nextView != null && sender == curView.primary() ? nextView :
-                curView;
-        ViewReply viewReply = new ViewReply(v);
+        ViewReply viewReply = new ViewReply(curView);
         send(viewReply, sender);
     }
 
@@ -91,9 +90,9 @@ class ViewServer extends Node {
         Timer Handlers
        -----------------------------------------------------------------------*/
     private void onPingCheckTimer(PingCheckTimer t) {
+        timeout();
         updateViewState();
 
-        pings.clear();
         set(t, PING_CHECK_MILLIS);
     }
 
@@ -101,42 +100,56 @@ class ViewServer extends Node {
         Utils
        -----------------------------------------------------------------------*/
 
-    private boolean updateViewState() {
+    private void timeout() {
+        List<Address> remove = new ArrayList<>();
+        for (Address addr : pings.keySet()) {
+            pings.put(addr, pings.get(addr) - 1);
+            if (pings.get(addr) <= 0) {
+                remove.add(addr);
+            }
+        }
+        for (Address a: remove) {
+            pings.remove(a);
+        }
+    }
+
+    private void nextView() {
+        prevView = curView;
+        curView = nextView;
+        nextView = null;
+    }
+
+    private void updateViewState() {
         // initial state
-        if (curView.viewNum() == STARTUP_VIEWNUM) {
-            if (pings.size() > 0) {
-                curView = nextView = new View(INITIAL_VIEWNUM,
-                        pings.keySet().iterator().next(), null);
-                return true;
-            }
-            return false;
-        } else if (curView.viewNum() == INITIAL_VIEWNUM) {
-            if (pings.size() > 1) {
-                // then we grab alternate address
-                Address backup = null;
-                for (Map.Entry<Address, Integer> e : pings.entrySet()) {
-                    if (!e.getKey().equals(curView.primary())) {
-                        backup = e.getKey();
-                        break;
-                    }
+        if (curView.viewNum() == STARTUP_VIEWNUM && pings.size() > 0) {
+            curView = nextView =
+                    new View(INITIAL_VIEWNUM, pings.keySet().iterator().next(),
+                            null);
+
+        } else if (curView.viewNum() == INITIAL_VIEWNUM && pings.size() > 1) {
+            // then we grab alternate address
+            Address backup = null;
+            for (Map.Entry<Address, Integer> e : pings.entrySet()) {
+                if (!e.getKey().equals(curView.primary())) {
+                    backup = e.getKey();
+                    break;
                 }
-                curView = nextView = new View(INITIAL_VIEWNUM + 1, curView.primary(), backup);
-                return true;
             }
-            return false;
+            curView = nextView =
+                    new View(INITIAL_VIEWNUM + 1, curView.primary(), backup);
         }
 
-        if (nextView != null) return false;
+        if (nextView != null) {
+            return;
+        }
 
         // all other states are "normal"
 
         // first we check primary/backup up
         boolean primaryUp = curView.primary() != null &&
-                pings.containsKey(curView.primary()) &&
-                pings.get(curView.primary()) >= curView.viewNum();
+                pings.containsKey(curView.primary());
         boolean backupUp = curView.backup() != null &&
-                pings.containsKey(curView.primary()) &&
-                pings.get(curView.backup()) == curView.viewNum();
+                pings.containsKey(curView.backup());
 
         // then we grab alternate address
         Address alternate = null;
@@ -148,20 +161,28 @@ class ViewServer extends Node {
             }
         }
 
+        if (!primaryUp && !backupUp) {
+            isDead = true;
+        } else if (isDead) {
+            if (primaryUp) {
+                curView = nextView = new View(curView.viewNum() + 1, curView.primary(),
+                        alternate);
+            } else {
+                curView = nextView = new View(curView.viewNum() + 1, curView.backup(),
+                        alternate);
+            }
+            isDead = false;
+        } else
         // primary, backup down, use alternate if exists
-        if (primaryUp && !backupUp && alternate != null) {
+        if (primaryUp && !backupUp && alternate != curView.backup()) {
             // backup down, select new backup
-            nextView = new View(curView.viewNum() + 1, curView.primary(),
+            curView = nextView = new View(curView.viewNum() + 1, curView.primary(),
                     alternate);
-            return true;
         } else if (!primaryUp && backupUp) {
             // primary down, backup up, move backup to primary, always occurs
-            nextView = new View(curView.viewNum() + 1, curView.backup(),
+            curView = nextView = new View(curView.viewNum() + 1, curView.backup(),
                     alternate);
-            return true;
         }
         // 2 other states, primary/backup up/down simul; both we don't do anything
-
-        return false;
     }
 }
