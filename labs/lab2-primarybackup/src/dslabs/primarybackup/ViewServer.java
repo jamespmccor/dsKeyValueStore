@@ -17,9 +17,10 @@ class ViewServer extends Node {
     static final int STARTUP_VIEWNUM = 0;
     private static final int INITIAL_VIEWNUM = 1;
 
-    private View deadView;
-    private View confirmedView;
-    private View proposedView;
+    private boolean stateTransfer;
+    private int viewNum;
+    private Address primary;
+    private Address backup;
     private final HashMap<Address, Integer> pings;
 
     /* -------------------------------------------------------------------------
@@ -27,8 +28,10 @@ class ViewServer extends Node {
        -----------------------------------------------------------------------*/
     public ViewServer(Address address) {
         super(address);
-        confirmedView = new View(STARTUP_VIEWNUM, null, null);
-        proposedView = null;
+        stateTransfer = false;
+        viewNum = STARTUP_VIEWNUM;
+        this.primary = null;
+        this.backup = null;
         pings = new HashMap<>();
     }
 
@@ -45,47 +48,25 @@ class ViewServer extends Node {
         // but make sure to take the largest one or default to startup (smallest)
         pings.put(sender, 2);
         // rotate view if primary of next view confirms
-        if (proposedView != null && proposedView.primary().equals(sender) &&
-                m.viewNum() == proposedView.viewNum()) {
-            rotateViews();
+        if (stateTransfer && primary.equals(sender) && m.viewNum() == viewNum) {
+            stateTransfer = false;
         }
 
-        if (confirmedView == null) {
-            // dead server;
-            updateViewState();
-            send(new ViewReply(confirmedView), sender);
-        } else if (m.viewNum() == STARTUP_VIEWNUM && proposedView == null) {
-            updateViewState();
-            send(new ViewReply(proposedView), sender);
-        } else if (confirmedView.backup() == null && proposedView == null) {
-            updateViewState();
-            send(new ViewReply(proposedView), sender);
-        } if (proposedView == null) {
-            send(new ViewReply(confirmedView), sender);
-        } else if (!proposedView.primary().equals(confirmedView.primary()) &&
-                // view must change
-
-                // since the only case the primary changes is when its cut off from network
-                // then theres no point signalling to it that the primary has changed
-                // if next != cur then just tell next its prim now
-                sender.equals(proposedView.primary()) ||
-                // if the backup changes then the primary must exist; notify cur primary
-                // of new view state before confirming new update
-                proposedView.backup() != null &&
-                        !proposedView.backup().equals(confirmedView.backup()) &&
-                        sender.equals(confirmedView.primary())) {
-
-            send(new ViewReply(proposedView), sender);
-        } else {
-            send(new ViewReply(confirmedView), sender);
+        if (!stateTransfer && viewNum == STARTUP_VIEWNUM) {
+            stateTransfer = true;
+            viewNum = INITIAL_VIEWNUM;
+            primary = sender;
+        } else if (!stateTransfer && backup == null && getNewBackup() != null) {
+            stateTransfer = true;
+            viewNum++;
+            backup = getNewBackup();
         }
+
+        send(getViewReply(), sender);
     }
 
     private void handleGetView(GetView m, Address sender) {
-        ViewReply viewReply = new ViewReply(
-                confirmedView != null ? confirmedView :
-                deadView);
-        send(viewReply, sender);
+        send(getViewReply(), sender);
     }
 
     /* -------------------------------------------------------------------------
@@ -93,7 +74,35 @@ class ViewServer extends Node {
        -----------------------------------------------------------------------*/
     private void onPingCheckTimer(PingCheckTimer t) {
         timeout();
-        updateViewState();
+
+        boolean primaryUp = primary != null && pings.containsKey(primary);
+        boolean backupUp = backup != null && pings.containsKey(backup);
+
+        if (stateTransfer || primaryUp && backupUp || !primaryUp && !backupUp) {
+            set(t, PING_CHECK_MILLIS);
+            return;
+        }
+
+        if (!primaryUp) {
+            // primary down, backup up, move backup to primary, always occurs
+            stateTransfer = true;
+            viewNum++;
+            primary = backup;
+            backup = getNewBackup();
+            // backup down, select new backup. alternate != cv.backup check to
+            // skip new view if backup is null
+        } else {
+            // primary up, backup down
+            if (getNewBackup() != null) {
+                stateTransfer = true;
+                viewNum++;
+                backup = getNewBackup();
+            } else if (backup != null) {
+                stateTransfer = true;
+                viewNum++;
+                backup = null;
+            }
+        }
 
         set(t, PING_CHECK_MILLIS);
     }
@@ -110,88 +119,22 @@ class ViewServer extends Node {
                 remove.add(addr);
             }
         }
-        for (Address a: remove) {
+        for (Address a : remove) {
             pings.remove(a);
         }
     }
 
-    private void rotateViews() {
-        deadView = null;
-        confirmedView = proposedView;
-        proposedView = null;
+    private ViewReply getViewReply() {
+        return new ViewReply(new View(viewNum, primary, backup));
     }
 
-    private void setCurNextViews(View v) {
-        confirmedView = proposedView = v;
-    }
-
-    private void updateViewState() {
-        if (proposedView != null) {
-            return;
-        }
-
-        // dead view
-        if (deadView != null) {
-            // has prim/backup
-            if (pings.containsKey(deadView.primary())) {
-                setCurNextViews(new View(deadView.viewNum() + (deadView.backup() == null ? 0 : 1), deadView.primary(), null));
-            } else if (deadView.backup() != null && pings.containsKey(deadView.backup())) {
-                setCurNextViews(new View(deadView.viewNum() + 1, deadView.backup(), null));
-            }
-            deadView = null;
-            return;
-        }
-
-        // initial state
-        if (confirmedView.viewNum() == STARTUP_VIEWNUM && pings.size() > 0) {
-            setCurNextViews(new View(INITIAL_VIEWNUM, pings.keySet().iterator().next(),
-                    null));
-            return;
-        } else if (confirmedView.viewNum() == INITIAL_VIEWNUM) {
-            // then we grab alternate address
-            Address backup = null;
-            for (Map.Entry<Address, Integer> e : pings.entrySet()) {
-                if (!e.getKey().equals(confirmedView.primary())) {
-                    backup = e.getKey();
-                    break;
-                }
-            }
-            if (backup != null)
-                setCurNextViews(new View(INITIAL_VIEWNUM + 1, confirmedView.primary(), backup));
-            return;
-        }
-
-        // all other states are "normal"
-
-        // first we check primary/backup up
-        boolean primaryUp = confirmedView.primary() != null &&
-                pings.containsKey(confirmedView.primary());
-        boolean backupUp = confirmedView.backup() != null &&
-                pings.containsKey(confirmedView.backup());
-
-        // then we grab alternate address
-        Address alternate = null;
-        for (Map.Entry<Address, Integer> e : pings.entrySet()) {
-            if (!e.getKey().equals(confirmedView.primary()) &&
-                    !e.getKey().equals(confirmedView.backup())) {
-                alternate = e.getKey();
-                break;
+    private Address getNewBackup() {
+        for (Address a : pings.keySet()) {
+            if (!a.equals(primary) && !a.equals(backup)) {
+                return a;
             }
         }
 
-
-        // primary, backup down, use alternate if exists
-        if (primaryUp && !backupUp && alternate != confirmedView.backup()) {
-            // backup down, select new backup
-            confirmedView = proposedView = new View(confirmedView.viewNum() + 1, confirmedView.primary(),
-                    alternate);
-        } else if (!primaryUp && backupUp) {
-            // primary down, backup up, move backup to primary, always occurs
-            confirmedView = proposedView = new View(confirmedView.viewNum() + 1, confirmedView.backup(),
-                    alternate);
-        } else if (!primaryUp && !backupUp) {
-            deadView = confirmedView;
-        }
-        // 2 other states, primary/backup up/down simul; both we don't do anything
+        return null;
     }
 }
