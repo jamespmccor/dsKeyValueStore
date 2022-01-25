@@ -29,10 +29,7 @@ class ViewServer extends Node {
      -----------------------------------------------------------------------*/
   public ViewServer(Address address) {
     super(address);
-    stateTransfer = false;
     viewNum = STARTUP_VIEWNUM;
-    this.primary = null;
-    this.backup = null;
     pings = new HashMap<>();
   }
 
@@ -57,10 +54,8 @@ class ViewServer extends Node {
       stateTransfer = true;
       viewNum = INITIAL_VIEWNUM;
       primary = sender;
-    } else if (!stateTransfer && backup == null && getNewBackup() != null) {
-      stateTransfer = true;
-      viewNum++;
-      backup = getNewBackup();
+    } else if (!stateTransfer && backup == null) {
+      setNewState(primary, getNewBackup());
     }
 
     send(getViewReply(), sender);
@@ -84,27 +79,7 @@ class ViewServer extends Node {
       return;
     }
 
-    if (!primaryUp) {
-      // primary down, backup up, move backup to primary, always occurs
-      stateTransfer = true;
-      viewNum++;
-      primary = backup;
-      backup = getNewBackup();
-      // backup down, select new backup. alternate != cv.backup check to
-      // skip new view if backup is null
-    } else {
-      // primary up, backup down
-      if (getNewBackup() != null) {
-        stateTransfer = true;
-        viewNum++;
-        backup = getNewBackup();
-      } else if (backup != null) {
-        stateTransfer = true;
-        viewNum++;
-        backup = null;
-      }
-    }
-
+    setNewState(primaryUp ? primary : backup, getNewBackup());
     set(t, PING_CHECK_MILLIS);
   }
 
@@ -112,17 +87,23 @@ class ViewServer extends Node {
         Utils
        -----------------------------------------------------------------------*/
 
+  // assumes primary always exists
+  private void setNewState(Address primary, Address backup) {
+    if (this.primary.equals(primary) &&
+        (this.backup == null && backup == null ||
+            this.backup != null && this.backup.equals(backup) ||
+            backup != null && backup.equals(this.backup))) {
+      return;
+    }
+    stateTransfer = true;
+    viewNum++;
+    this.primary = primary;
+    this.backup = backup;
+  }
+
   private void timeout() {
-    List<Address> remove = new ArrayList<>();
-    for (Address a : pings.keySet()) {
-      pings.put(a, pings.get(a) - 1);
-      if (pings.get(a) <= 0) {
-        remove.add(a);
-      }
-    }
-    for (Address a : remove) {
-      pings.remove(a);
-    }
+    pings.replaceAll((k, v) -> --v);
+    pings.values().removeIf(v -> v <= 0);
   }
 
   private ViewReply getViewReply() {
@@ -130,11 +111,8 @@ class ViewServer extends Node {
   }
 
   private Address getNewBackup() {
-    for (Address a : pings.keySet()) {
-      if (!a.equals(primary) && !a.equals(backup)) {
-        return a;
-      }
-    }
-    return null;
+    return pings.keySet().stream()
+        .filter(a -> !a.equals(primary) && !a.equals(backup))
+        .findFirst().orElse(null);
   }
 }
