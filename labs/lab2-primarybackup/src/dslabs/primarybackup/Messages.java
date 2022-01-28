@@ -62,7 +62,9 @@ class Forward extends Request {
 
 @Data
 class ForwardAck extends Request {
-    public ForwardAck(AMOCommand cmd){
+    private final int seqNum;
+    public ForwardAck(int seqNum, AMOCommand cmd){
         super(cmd);
+        this.seqNum = seqNum;
     }
 }
