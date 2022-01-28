@@ -1,5 +1,6 @@
 package dslabs.primarybackup;
 
+import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
@@ -13,7 +14,11 @@ import lombok.ToString;
 class PBClient extends Node implements Client {
     private final Address viewServer;
 
-    // Your code here...
+    private int seqNum;
+    private Request request;
+    private Result result;
+    private View currView;
+    private int resendCount;
 
     /* -------------------------------------------------------------------------
         Construction and Initialization
@@ -21,11 +26,14 @@ class PBClient extends Node implements Client {
     public PBClient(Address address, Address viewServer) {
         super(address);
         this.viewServer = viewServer;
+        currView = null;
+        resendCount = 0;
     }
 
     @Override
     public synchronized void init() {
-        // Your code here...
+        send(new GetView(), viewServer);
+        set(new ClientTimer(null), ClientTimer.CLIENT_RETRY_MILLIS);
     }
 
     /* -------------------------------------------------------------------------
@@ -33,38 +41,63 @@ class PBClient extends Node implements Client {
        -----------------------------------------------------------------------*/
     @Override
     public synchronized void sendCommand(Command command) {
-        // Your code here...
+        request = new Request(new AMOCommand(seqNum, this.address(), command));
+        result = null;
+
+        if(currView != null && currView.primary() != null) {
+            send(request, currView.primary());
+        } else{
+            send(new GetView(), viewServer);
+        }
+        set(new ClientTimer(request), ClientTimer.CLIENT_RETRY_MILLIS);
     }
 
     @Override
     public synchronized boolean hasResult() {
-        // Your code here...
-        return false;
+        return result != null;
     }
 
     @Override
     public synchronized Result getResult() throws InterruptedException {
-        // Your code here...
-        return null;
+        while (result == null) {
+            this.wait();
+        }
+        seqNum++;
+        return result;
     }
 
     /* -------------------------------------------------------------------------
         Message Handlers
        -----------------------------------------------------------------------*/
     private synchronized void handleReply(Reply m, Address sender) {
-        // Your code here...
+        if (request.amoCommand().num() == m.amoResult().num()) {
+            result = m.amoResult().result();
+            resendCount = 0;
+            notify();
+        }
     }
 
     private synchronized void handleViewReply(ViewReply m, Address sender) {
-        // Your code here...
+        currView = m.view();
     }
 
-    // Your code here...
+    private void handleViewError(ViewError err, Address sender){
+        currView = null;
+    }
 
     /* -------------------------------------------------------------------------
         Timer Handlers
        -----------------------------------------------------------------------*/
     private synchronized void onClientTimer(ClientTimer t) {
-        // Your code here...
+        if(currView == null || currView.primary() == null){
+            send(new GetView(), viewServer);
+            set(t, ClientTimer.CLIENT_RETRY_MILLIS);
+        } else if (request.equals(t.request()) && result == null) {
+            if(++resendCount >= 2){
+                send(new GetView(), viewServer);
+            }
+            send(request, currView.primary());
+            set(t, ClientTimer.CLIENT_RETRY_MILLIS);
+        }
     }
 }

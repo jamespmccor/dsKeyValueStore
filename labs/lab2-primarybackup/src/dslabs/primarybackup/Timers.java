@@ -1,6 +1,7 @@
 package dslabs.primarybackup;
 
 import dslabs.framework.Timer;
+import dslabs.framework.Message;
 import lombok.Data;
 
 @Data
@@ -18,6 +19,21 @@ final class ClientTimer implements Timer {
     static final int CLIENT_RETRY_MILLIS = 100;
 
     // Your code here...
+    private final Request request;
 }
 
-// Your code here...
+@Data
+class ServerTimer implements Timer {
+    static final int SERVER_RETRY_MILLIS = 100;
+}
+
+@Data
+class StateTransferTimer extends ServerTimer {
+    private final StateTransfer state;
+}
+
+@Data
+class ForwardTimer extends ServerTimer {
+    private final Request request;
+}
+

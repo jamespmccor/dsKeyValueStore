@@ -1,0 +1,66 @@
+PBServer:
+    MESSAGES NEEDED:
+        - StateTransfer
+            - Application
+        - AckStateTransfer
+        - AckExecuted
+            - 
+        - ViewError #wrong view
+    
+    UTILS:
+        
+
+    
+    Instance vars
+        - curr view
+        - AMOApplication
+        - bool validState
+    
+    constructor
+        - set AMOApplication
+        - set viewnum to STARTUP_VIEWNUM
+
+    init()
+        - set pingtimer
+    
+    handleViewReply
+        - check viewnum
+            - if new: ##SPECIAL MESSAGE TYPE FOR STATE TRANSFER??##
+                - update view
+                - if now primary:
+                    - validState = false
+                    - used to be backup, transfer state to new backup
+                - if now backup:
+                    - validState = false
+                    - spin for special message?
+            - else:
+                - do nothing
+    
+    handleRequest
+        - if !validState:
+            - i
+        - if primary:
+
+            - forward to backup
+            - set ClientTimer
+            - retransmit until ACKED
+            if ACK is error:
+                - send client error (client probably has old view)
+            else:
+                - execute command and send to client
+        - if backup:
+            - ensure request came from primary
+                - if not reply ViewError
+            - execute command and send to primary
+        - else:
+            - send client ViewError (client probably has old view)
+    
+    onPingTimer
+        - send Ping(viewnum) to viewServer
+        - set PingTimer
+    
+    handleStateTransfer
+        - 
+    
+
+        
