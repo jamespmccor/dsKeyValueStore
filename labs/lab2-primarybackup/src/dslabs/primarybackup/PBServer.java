@@ -64,6 +64,9 @@ class PBServer extends Node {
       send(new ViewError(), sender);
       return;
     }
+    if (stateTransfer) {
+      return;
+    }
     if (!hasBackup()) {
 //      System.out.println(
 //          "p" + "//" + " " + m.amoCommand().sender().toString() + "," + m.amoCommand().num());
@@ -85,6 +88,9 @@ class PBServer extends Node {
       send(new ViewError(), sender);
       return;
     }
+    if (stateTransfer) {
+      return;
+    }
 
     if (forward.seqNum() < k + 1) {
 //      System.out.println("rejected sn/k: " + forward.seqNum() + " " + k);
@@ -103,6 +109,9 @@ class PBServer extends Node {
   private void handleForwardAck(ForwardAck ack, Address sender) {
     if (!isPrimary() || !sender.equals(curView.backup())) {
       send(new ViewError(), sender);
+      return;
+    }
+    if (stateTransfer) {
       return;
     }
 
