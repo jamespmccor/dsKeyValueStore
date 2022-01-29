@@ -41,6 +41,7 @@ class PBClient extends Node implements Client {
        -----------------------------------------------------------------------*/
     @Override
     public synchronized void sendCommand(Command command) {
+        assert this.address() != null;
         request = new Request(new AMOCommand(seqNum, this.address(), command));
         result = null;
 
@@ -81,7 +82,7 @@ class PBClient extends Node implements Client {
         currView = m.view();
     }
 
-    private void handleViewError(ViewError err, Address sender){
+    private synchronized void handleViewError(ViewError err, Address sender){
         currView = null;
     }
 

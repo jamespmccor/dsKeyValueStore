@@ -4,159 +4,187 @@ import dslabs.framework.Address;
 import dslabs.framework.Application;
 import dslabs.framework.Node;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import dslabs.atmostonce.*;
+import java.util.TreeMap;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 class PBServer extends Node {
-    private final Address viewServer;
+
+  private final Address viewServer;
+
+  // Your code here...
+  private View curView;
+  private AMOApplication<Application> app;
+  private boolean stateTransfer;
+
+  private int k = 0;
+  private final TreeMap<Integer, Request> forwardedRequests;
+
+  /* -------------------------------------------------------------------------
+      Construction and Initialization
+     -----------------------------------------------------------------------*/
+  PBServer(Address address, Address viewServer, Application app) {
+    super(address);
+    this.viewServer = viewServer;
 
     // Your code here...
-    private View currView;
-    private AMOApplication<Application> app;
-    private boolean stateTransfer;
-    private Set<Request> forwardedRequests;
+    curView = new View(ViewServer.STARTUP_VIEWNUM, null, null);
+    this.app = new AMOApplication<>(app);
+    forwardedRequests = new TreeMap<>();
+  }
 
-    /* -------------------------------------------------------------------------
-        Construction and Initialization
-       -----------------------------------------------------------------------*/
-    PBServer(Address address, Address viewServer, Application app) {
-        super(address);
-        this.viewServer = viewServer;
+  @Override
+  public void init() {
+    set(new PingTimer(), PingTimer.PING_MILLIS);
+  }
 
-        // Your code here...
-        currView = new View(ViewServer.STARTUP_VIEWNUM, null, null);
-        this.app = new AMOApplication<>(app);
-        forwardedRequests = new HashSet<>();
+  /* -------------------------------------------------------------------------
+      Message Handlers
+     -----------------------------------------------------------------------*/
+  private void handleViewReply(ViewReply m, Address sender) {
+    // Your code here...
+    if (m.view().viewNum() > curView.viewNum()) {
+      if (m.view().primary().equals(this.address())
+          && m.view().backup() != null) {
+
+        stateTransfer = true;
+        StateTransfer state = new StateTransfer(m.view(), this.app);
+        send(state, m.view().backup());
+        set(new StateTransferTimer(state), ServerTimer.SERVER_RETRY_MILLIS);
+      }
+      curView = m.view();
+    }
+  }
+
+  private void handleRequest(Request m, Address sender) {
+    if (!isPrimary()) {
+      send(new ViewError(), sender);
+      return;
+    }
+    if (!hasBackup()) {
+//      System.out.println(
+//          "p" + "//" + " " + m.amoCommand().sender().toString() + "," + m.amoCommand().num());
+      AMOResult result = app.execute(m.amoCommand());
+      if (result != null) {
+        send(new Reply(result), m.amoCommand().sender());
+      }
+    } else {
+      k++;
+      send(new Forward(k, m.amoCommand()), curView.backup());
+      forwardedRequests.put(k, m);
+      set(new ForwardTimer(k, m), ServerTimer.SERVER_RETRY_MILLIS);
+    }
+  }
+
+  private void handleForward(Forward forward, Address sender) {
+    if (!isBackup()
+        || !sender.equals(curView.primary())) {
+      send(new ViewError(), sender);
+      return;
     }
 
-    @Override
-    public void init() {
-        // Your code here...
-        set(new PingTimer(), PingTimer.PING_MILLIS);
+    if (forward.seqNum() < k + 1) {
+//      System.out.println("rejected sn/k: " + forward.seqNum() + " " + k);
+      return;
+    }
+//    System.out.println("ack sn/k: " + forward.seqNum() + " " + k);
+
+    app.execute(forward.amoCommand());
+    k = forward.seqNum();
+//    System.out.println("b" + forward.seqNum() + " " + forward.amoCommand().sender().toString() + ","
+//        + forward.amoCommand().num());
+
+    send(new ForwardAck(forward.seqNum()), sender);
+  }
+
+  private void handleForwardAck(ForwardAck ack, Address sender) {
+    if (!isPrimary() || !sender.equals(curView.backup())) {
+      send(new ViewError(), sender);
+      return;
     }
 
-    /* -------------------------------------------------------------------------
-        Message Handlers
-       -----------------------------------------------------------------------*/
-    private void handleRequest(Request m, Address sender) {
-        if(isPrimary() && !stateTransfer){
-            if(!hasBackup()){
-                AMOResult result = app.execute(m.amoCommand());
-                if(result != null){
-                    send(new Reply(result), m.amoCommand().sender());
-                }
-            } else{
-                send(new Forward(m.amoCommand()), currView.backup());
-                forwardedRequests.add(m);
-                set(new ForwardTimer(m), ServerTimer.SERVER_RETRY_MILLIS);
-            }
-        } else{
-            send(new ViewError(), sender);
-        }
+    if (!forwardedRequests.containsKey(ack.seqNum()) ) {
+      return;
     }
+    Request m = forwardedRequests.get(ack.seqNum());
 
-    private void handleViewReply(ViewReply m, Address sender) {
-        // Your code here...
-        if(m.view().viewNum() > currView.viewNum()){
-            if(m.view().primary().equals(this.address()) 
-                && m.view().backup() != null){
-                    
-                stateTransfer = true;
-                StateTransfer state = new StateTransfer(m.view(), this.app);
-                send(state, m.view().backup());
-                set(new StateTransferTimer(state), ServerTimer.SERVER_RETRY_MILLIS);
-            }
-            currView = m.view();
-        }
-    }
+    AMOResult result = app.execute(m.amoCommand());
+//    System.out.println(
+//        "p" + ack.seqNum() + " " + m.amoCommand().sender().toString() + "," + m.amoCommand().num());
 
-    private void handleForwardAck(ForwardAck ack, Address sender){
-        if(isPrimary()
-            && sender.equals(currView.backup())){
-            forwardedRequests.remove((Request)ack);
-            AMOResult result = app.execute(ack.amoCommand());
-            if(result != null){
-                send(new Reply(result), ack.amoCommand().sender());
-            }
-        } else {
-            send(new ViewError(), sender);
-        }
+    while (!forwardedRequests.isEmpty() && forwardedRequests.firstKey() <= ack.seqNum()) {
+      forwardedRequests.remove(forwardedRequests.firstKey());
     }
+    if (result != null) {
+      send(new Reply(result), m.amoCommand().sender());
+    }
+  }
 
-    private void handleForward(Forward forward, Address sender){
-        if(isBackup()
-            && sender.equals(currView.primary())){
-            app.execute(forward.amoCommand());
-            send(new ForwardAck(forward.amoCommand()), sender);
-        } else{
-            send(new ViewError(), sender);
-        }
-    }
+  //new backup just copies App
+  private void handleStateTransfer(StateTransfer state, Address sender) {
+    if (hasBackup()
+        && sender.equals(curView.primary())
+        && state.view().viewNum() == curView.viewNum()) {
 
-    //new backup just copies App
-    private void handleStateTransfer(StateTransfer state, Address sender){
-        if(isBackup()
-            && sender.equals(currView.primary())
-            && state.view().viewNum() == currView.viewNum()){
-            
-            app = state.app();
-            send(new StateTransferAck(), sender);
-        }
+      app = state.app();
+      forwardedRequests.clear();
+      send(new StateTransferAck(), sender);
     }
+  }
 
-    //new backup successfully transferred state, clear recorded requests
-    private void handleStateTransferAck(StateTransferAck ack, Address sender){
-        if(isPrimary()
-            && sender.equals(currView.backup())){
-            
-            forwardedRequests.clear();
-            stateTransfer = false;
-        }
-    }
+  //new backup successfully transferred state, clear recorded requests
+  private void handleStateTransferAck(StateTransferAck ack, Address sender) {
+    if (isPrimary()
+        && sender.equals(curView.backup())) {
 
-    private void handleViewError(ViewError err, Address sender){
+      forwardedRequests.clear();
+      stateTransfer = false;
     }
+  }
+
+  private void handleViewError(ViewError err, Address sender) {
+  }
 
 
-    /* -------------------------------------------------------------------------
-        Timer Handlers
-       -----------------------------------------------------------------------*/
-    private void onPingTimer(PingTimer t) {
-        send(new Ping(currView.viewNum()), viewServer);
-        set(t, PingTimer.PING_MILLIS);
-    }
+  /* -------------------------------------------------------------------------
+      Timer Handlers
+     -----------------------------------------------------------------------*/
+  private void onPingTimer(PingTimer t) {
+    send(new Ping(curView.viewNum()), viewServer);
+    set(t, PingTimer.PING_MILLIS);
+  }
 
-    private void onStateTransferTimer(StateTransferTimer t){
-        if(stateTransfer){
-            send(t.state(), t.state().view().backup());
-            set(t, ServerTimer.SERVER_RETRY_MILLIS);
-        }
+  private void onStateTransferTimer(StateTransferTimer t) {
+    if (stateTransfer) {
+      send(t.state(), t.state().view().backup());
+      set(t, ServerTimer.SERVER_RETRY_MILLIS);
     }
+  }
 
-    private void onForwardTimer(ForwardTimer t){
-        if(forwardedRequests.contains(t.request())
-            && hasBackup()){
-            send(t.request(), currView.backup());
-            set(t, ServerTimer.SERVER_RETRY_MILLIS);
-        }
+  private void onForwardTimer(ForwardTimer t) {
+    if (hasBackup() && forwardedRequests.containsKey(t.seqNum())) {
+      send(t.request(), curView.backup());
+      set(t, ServerTimer.SERVER_RETRY_MILLIS);
     }
+  }
 
     /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
-    private boolean isPrimary(){
-        return this.address().equals(currView.primary());
-    }
-    private boolean isBackup(){
-        return this.address().equals(currView.backup());
-    }
-    private boolean hasBackup(){
-        return currView.backup() != null;
-    }
+  // Your code here...
+
+  private boolean isPrimary() {
+    return this.address().equals(curView.primary());
+  }
+
+  private boolean isBackup() {
+    return this.address().equals(curView.backup());
+  }
+
+  private boolean hasBackup() {
+    return curView.backup() != null;
+  }
 }

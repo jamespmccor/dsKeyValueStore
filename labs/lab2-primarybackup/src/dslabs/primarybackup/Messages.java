@@ -55,14 +55,15 @@ class StateTransferAck implements Message {
 
 @Data
 class Forward extends Request {
-    public Forward(AMOCommand cmd){
+    private final int seqNum;
+
+    public Forward(int seqNum, AMOCommand cmd){
         super(cmd);
+        this.seqNum = seqNum;
     }
 }
 
 @Data
-class ForwardAck extends Request {
-    public ForwardAck(AMOCommand cmd){
-        super(cmd);
-    }
+class ForwardAck implements Message {
+    private final int seqNum;
 }
