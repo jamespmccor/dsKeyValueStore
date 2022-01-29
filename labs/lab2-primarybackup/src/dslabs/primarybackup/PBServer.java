@@ -45,8 +45,8 @@ class PBServer extends Node {
         Message Handlers
        -----------------------------------------------------------------------*/
     private void handleRequest(Request m, Address sender) {
-        if(this.address().equals(currView.primary())){
-            if(currView.backup() == null){
+        if(isPrimary() && !stateTransfer){
+            if(!hasBackup()){
                 AMOResult result = app.execute(m.amoCommand());
                 if(result != null){
                     send(new Reply(result), m.amoCommand().sender());
@@ -77,7 +77,7 @@ class PBServer extends Node {
     }
 
     private void handleForwardAck(ForwardAck ack, Address sender){
-        if(this.address().equals(currView.primary()) 
+        if(isPrimary()
             && sender.equals(currView.backup())){
             forwardedRequests.remove((Request)ack);
             AMOResult result = app.execute(ack.amoCommand());
@@ -90,7 +90,7 @@ class PBServer extends Node {
     }
 
     private void handleForward(Forward forward, Address sender){
-        if(this.address().equals(currView.backup())
+        if(isBackup()
             && sender.equals(currView.primary())){
             app.execute(forward.amoCommand());
             send(new ForwardAck(forward.amoCommand()), sender);
@@ -101,7 +101,7 @@ class PBServer extends Node {
 
     //new backup just copies App
     private void handleStateTransfer(StateTransfer state, Address sender){
-        if(this.address().equals(currView.backup())
+        if(isBackup()
             && sender.equals(currView.primary())
             && state.view().viewNum() == currView.viewNum()){
             
@@ -112,7 +112,7 @@ class PBServer extends Node {
 
     //new backup successfully transferred state, clear recorded requests
     private void handleStateTransferAck(StateTransferAck ack, Address sender){
-        if(this.address().equals(currView.primary())
+        if(isPrimary()
             && sender.equals(currView.backup())){
             
             forwardedRequests.clear();
@@ -140,7 +140,8 @@ class PBServer extends Node {
     }
 
     private void onForwardTimer(ForwardTimer t){
-        if(forwardedRequests.contains(t.request())){
+        if(forwardedRequests.contains(t.request())
+            && hasBackup()){
             send(t.request(), currView.backup());
             set(t, ServerTimer.SERVER_RETRY_MILLIS);
         }
@@ -149,5 +150,13 @@ class PBServer extends Node {
     /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
-    // Your code here...
+    private boolean isPrimary(){
+        return this.address().equals(currView.primary());
+    }
+    private boolean isBackup(){
+        return this.address().equals(currView.backup());
+    }
+    private boolean hasBackup(){
+        return currView.backup() != null;
+    }
 }
