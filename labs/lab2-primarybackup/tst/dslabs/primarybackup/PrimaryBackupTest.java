@@ -591,7 +591,7 @@ public class PrimaryBackupTest extends BaseJUnitTest {
         test10ConcurrentPut();
     }
 
-    @Test(timeout = 90 * 1000)
+    @Test(timeout = 30 * 1000)
     @PrettyTestName("Concurrent appends, same key, fail to backup")
     @Category({RunTests.class, UnreliableTests.class})
     @TestPointValue(20)

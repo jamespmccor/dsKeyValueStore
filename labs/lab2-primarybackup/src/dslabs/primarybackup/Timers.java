@@ -34,6 +34,7 @@ class StateTransferTimer extends ServerTimer {
 
 @Data
 class ForwardTimer extends ServerTimer {
+    private final int seqNum;
     private final Request request;
 }
 
