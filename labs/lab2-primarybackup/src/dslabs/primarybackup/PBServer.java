@@ -13,12 +13,15 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 class PBServer extends Node {
 
+  private static final boolean PRINT_DEBUG = true;
+
   private final Address viewServer;
 
   // Your code here...
   private View curView;
   private AMOApplication<Application> app;
   private boolean stateTransfer;
+  private Address curSender;
 
   private int k = 0;
   private final TreeMap<Integer, Request> forwardedRequests;
@@ -67,9 +70,17 @@ class PBServer extends Node {
     if (stateTransfer) {
       return;
     }
+    if (curSender != null && !curSender.equals(sender)) {
+      return;
+    }
+    curSender = sender;
+
     if (!hasBackup()) {
-//      System.out.println(
-//          "p" + "//" + " " + m.amoCommand().sender().toString() + "," + m.amoCommand().num());
+      if (PRINT_DEBUG) {
+        System.out.println(
+            "p" + "//" + " " + m.amoCommand().sender().toString() + "," + m.amoCommand().num());
+      }
+
       AMOResult result = app.execute(m.amoCommand());
       if (result != null) {
         send(new Reply(result), m.amoCommand().sender());
@@ -93,15 +104,23 @@ class PBServer extends Node {
     }
 
     if (forward.seqNum() < k + 1) {
-//      System.out.println("rejected sn/k: " + forward.seqNum() + " " + k);
+      if (PRINT_DEBUG) {
+        System.out.println("rejected sn/k: " + forward.seqNum() + " " + k);
+      }
       return;
     }
-//    System.out.println("ack sn/k: " + forward.seqNum() + " " + k);
+
+    if (PRINT_DEBUG) {
+      System.out.println("ack sn/k: " + forward.seqNum() + " " + k);
+    }
 
     app.execute(forward.amoCommand());
     k = forward.seqNum();
-//    System.out.println("b" + forward.seqNum() + " " + forward.amoCommand().sender().toString() + ","
-//        + forward.amoCommand().num());
+    if (PRINT_DEBUG) {
+      System.out.println(
+          "b" + forward.seqNum() + " " + forward.amoCommand().sender().toString() + ","
+              + forward.amoCommand().num());
+    }
 
     send(new ForwardAck(forward.seqNum()), sender);
   }
@@ -115,15 +134,19 @@ class PBServer extends Node {
       return;
     }
 
-    if (!forwardedRequests.containsKey(ack.seqNum()) ) {
+    if (!forwardedRequests.containsKey(ack.seqNum())) {
       return;
     }
+    curSender = null;
     Request m = forwardedRequests.get(ack.seqNum());
-
     AMOResult result = app.execute(m.amoCommand());
-//    System.out.println(
-//        "p" + ack.seqNum() + " " + m.amoCommand().sender().toString() + "," + m.amoCommand().num());
 
+    if (PRINT_DEBUG) {
+      System.out.println(
+          "p" + ack.seqNum() + " " + m.amoCommand().sender().toString() + "," + m.amoCommand()
+              .num());
+
+    }
     while (!forwardedRequests.isEmpty() && forwardedRequests.firstKey() <= ack.seqNum()) {
       forwardedRequests.remove(forwardedRequests.firstKey());
     }
