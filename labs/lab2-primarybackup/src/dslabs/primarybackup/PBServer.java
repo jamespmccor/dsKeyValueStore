@@ -13,7 +13,7 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 class PBServer extends Node {
 
-  private static final boolean PRINT_DEBUG = true;
+  private static final boolean PRINT_DEBUG = false;
 
   private final Address viewServer;
 
