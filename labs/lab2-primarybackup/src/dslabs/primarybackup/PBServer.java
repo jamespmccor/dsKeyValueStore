@@ -17,7 +17,6 @@ class PBServer extends Node {
 
   private final Address viewServer;
 
-  // Your code here...
   private View curView;
   private AMOApplication<Application> app;
   private boolean stateTransfer;

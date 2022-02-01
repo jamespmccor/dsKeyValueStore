@@ -1,12 +1,74 @@
 Lab 2 Writeup
 
-Partner 1 Name, NetID: 
-Partner 2 Name, NetID: 
+Partner 1 Name, NetID: Jevin Gu - jevin
+Partner 2 Name, NetID: James McCormick - jpmccor
 
 Brief description of design:
+- View Server
+  - Basically we observed that at any one point we only needed to hold a single state
+    and a boolean of whether that state was confirmed which was used to ensure that
+    only a single new state could be introduced at a single point in time.
 
+  - What this means is that therefore we simply kept track of the server pings and
+    which servers were active in the last 2 ping timers. When one of those servers
+    used in the primary/backup went down, we simply selected an alternative server.
 
-Hours spent on the lab: 
+  - Since there were several cases where the view server could technically ask for
+    a new server but end up getting the same new view state we abstracted out our
+    setNewState code to handle that case for us so there would be a single point
+    of failure for new views.
 
+  - The only other edge case to consider was the initial startup view where the
+    primary was immediately selected and sent back to the first ping. All other
+    state changes could be combined with the timer so we handled that edge
+    case in handlePing.
+
+- PBServer
+    Invariants:
+    - We only allow one client to send at a time
+    - Clients are allowed to resend as many times as they want, but may not be
+      accepted by the server
+    - Clients should only have a single active request at a time
+    - If a client sends a request to a server which is not the primary of the current
+      view we send a ViewError asking the client to update their view.
+
+    The 4 possible states from the perspective of the view server:
+    0. Primary / Backup
+      - In the case that primary / backup were up we simply kept track of the current
+        client and then number the request in terms of a global sequence number in order
+        to minimize the amount of network transfer + make it easier to debug.
+      - Once the primary receives a request then it forwards it to the backup, the backup
+        will then run the request and send back an ack to the primary with the sequence
+        number.
+      - Once the primary receives the ack and then send the result back to the client and
+        allow a new request. Only the primary resends non-acked requests since the backup
+        does not keep track of the current client.
+    1. Primary / No Backup
+      - If the backup drops requests cannot be completed since the request must be
+        sent to the backup + forwarded back to the primary to be run
+      - If the view specifies that there is not backup then it will simply be run on the
+        primary.
+    2. No Primary / Backup
+      - We wait for this to transfer to state 1 per view server direction.
+    3. State Change
+      - On view num increment the PBServer will enable a state change variable that
+        allows requests to be dropped while state is transferred.
+      - By sending the view number with the State Change + Ack we guarantee state
+        of the backup is only set once.
+
+- PBClient
+    Copied from simple server except we keep track of the view server and update the
+    address of the primary when the client request fails multiple times.
+
+Hours spent on the lab:
+Jevin - 25
+James - 10
 
 Any feedback about the lab:
+- Debugger was really inconsistent since it could be only used on the search tests even
+  though all test theoretically should be able to generate a trace.
+- The log of events was sometimes helpful but because there were so many events it made
+  more sense for us to implement our own print debugger that displays state.
+- The way the view server was explained made it seem like there were a lot more states
+  than we ended up and it took a couple tries to understand that 99% of the state changes
+  could be done @ a ping timer instead of immediately after a server pinged.
