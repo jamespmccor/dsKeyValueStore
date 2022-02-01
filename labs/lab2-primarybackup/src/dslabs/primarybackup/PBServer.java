@@ -50,13 +50,18 @@ class PBServer extends Node {
   private void handleViewReply(ViewReply m, Address sender) {
     // Your code here...
     if (m.view().viewNum() > curView.viewNum()) {
-      if (m.view().primary().equals(this.address())
-          && m.view().backup() != null) {
+      stateTransfer = true;
 
-        stateTransfer = true;
-        StateTransfer state = new StateTransfer(m.view(), this.app);
-        send(state, m.view().backup());
-        set(new StateTransferTimer(state), ServerTimer.SERVER_RETRY_MILLIS);
+      if (m.view().primary().equals(this.address())) {
+        if (m.view().backup() != null) {
+          StateTransfer state = new StateTransfer(m.view(), this.app);
+          send(state, m.view().backup());
+          set(new StateTransferTimer(state), ServerTimer.SERVER_RETRY_MILLIS);
+        } else {
+          stateTransfer = false;
+          curSender = null;
+          forwardedRequests.clear();
+         }
       }
       curView = m.view();
     }
@@ -147,9 +152,10 @@ class PBServer extends Node {
               .num());
 
     }
-    while (!forwardedRequests.isEmpty() && forwardedRequests.firstKey() <= ack.seqNum()) {
-      forwardedRequests.remove(forwardedRequests.firstKey());
-    }
+//    while (!forwardedRequests.isEmpty() && forwardedRequests.firstKey() <= ack.seqNum()) {
+//      forwardedRequests.remove(forwardedRequests.firstKey());
+//    }
+    forwardedRequests.remove(ack.seqNum());
     if (result != null) {
       send(new Reply(result), m.amoCommand().sender());
     }
@@ -157,20 +163,30 @@ class PBServer extends Node {
 
   //new backup just copies App
   private void handleStateTransfer(StateTransfer state, Address sender) {
-    if (hasBackup()
+    if (isBackup()
         && sender.equals(curView.primary())
         && state.view().viewNum() == curView.viewNum()) {
+//
+//      if (PRINT_DEBUG) {
+//        System.out.println(
+//            "b" + state.view());
+//      }
 
-      app = state.app();
-      forwardedRequests.clear();
-      send(new StateTransferAck(), sender);
+      if (stateTransfer) {
+        app = state.app();
+        forwardedRequests.clear();
+        stateTransfer = false;
+      }
+      send(new StateTransferAck(curView.viewNum()), sender);
     }
   }
 
   //new backup successfully transferred state, clear recorded requests
   private void handleStateTransferAck(StateTransferAck ack, Address sender) {
     if (isPrimary()
-        && sender.equals(curView.backup())) {
+        && stateTransfer
+        && sender.equals(curView.backup())
+        && ack.viewNum() == curView.viewNum()) {
 
       forwardedRequests.clear();
       stateTransfer = false;
@@ -185,12 +201,16 @@ class PBServer extends Node {
       Timer Handlers
      -----------------------------------------------------------------------*/
   private void onPingTimer(PingTimer t) {
-    send(new Ping(curView.viewNum()), viewServer);
+    if(isPrimary() && stateTransfer) {
+      send(new Ping(curView.viewNum() - 1), viewServer);
+    } else {
+      send(new Ping(curView.viewNum()), viewServer);
+    }
     set(t, PingTimer.PING_MILLIS);
   }
 
   private void onStateTransferTimer(StateTransferTimer t) {
-    if (stateTransfer) {
+    if (isPrimary() && t.state().view().viewNum() == curView.viewNum()) {
       send(t.state(), t.state().view().backup());
       set(t, ServerTimer.SERVER_RETRY_MILLIS);
     }

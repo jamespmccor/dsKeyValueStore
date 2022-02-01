@@ -50,6 +50,7 @@ class StateTransfer implements Message {
 
 @Data
 class StateTransferAck implements Message {
+    private final int viewNum;
 }
 
 
