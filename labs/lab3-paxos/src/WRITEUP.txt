@@ -1,6 +1,6 @@
 Lab 3 Writeup
 
-Partner 1 Name, NetID: 
+Partner 1 Jevin Gu, jevin:
 Partner 2 Name, NetID: 
 
 Brief description of design:
