@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class LogEntry {
-    private Ballot ballot;
+    private int seqNum;
     private AMOCommand amoCommand;
     private PaxosLogSlotStatus status;
 }

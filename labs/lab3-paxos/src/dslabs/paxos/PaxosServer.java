@@ -1,10 +1,7 @@
 package dslabs.paxos;
 
 import dslabs.atmostonce.AMOApplication;
-import dslabs.framework.Address;
-import dslabs.framework.Application;
-import dslabs.framework.Command;
-import dslabs.framework.Node;
+import dslabs.framework.*;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import dslabs.framework.testing.LocalAddress;
@@ -26,11 +23,12 @@ public class PaxosServer extends Node {
      */
     private final Address[] servers;
 
+    private int seqNum;
     private Address leader;
     private final Map<Integer, LogEntry> log;
     private final Ballot ballot;
     private AMOApplication<Application> app;
-    private Map<Integer, Set<Integer>> received2B;
+    private Map<Integer, Set<Address>> received2B; // leader specific
     private int slot_out; // leader puts new proposals here
     private int slot_in; // first unexecuted slot
 
@@ -143,10 +141,9 @@ public class PaxosServer extends Node {
         Message Handlers
        -----------------------------------------------------------------------*/
     private void handlePaxosRequest(PaxosRequest m, Address sender) {
-        if (!isLeader()) {
-            return;
+        if (!isLeader() && !app.alreadyExecuted(m.cmd())) {
+
         }
-        // broadcast(Ballot, logEntry
 
     }
 
@@ -164,6 +161,11 @@ public class PaxosServer extends Node {
     /**
      * Takes an accepted ballot, and then adds it as a {@link PaxosLogSlotStatus#ACCEPTED} slot.
      * Send out message telling all replicas accepted/rejected the message.
+     * <p>
+     * P2A(slot, seq, logentry) =>
+     * if (leader) =>
+     * set(seq, logentry) for slot
+     * send2B(slot, seq)
      *
      * @param m
      * @param sender
@@ -174,11 +176,24 @@ public class PaxosServer extends Node {
             return;
         }
         debugSenderMsg(sender, "ack 2a");
-        // broadcast 2B once accepted?
+        setLogState(m.slot(), m.entry());
+        send2B();
     }
 
     /**
+     * Log => Map(slots, LogEntries)
+     * LogEntry(Ballot, state, command)
+     * Ballot -> (seqNum, address)
+     *
+     *
+     */
+
+    /**
      * Receive the accept/reject from the sender.
+     * P2B(slot, seq) =>
+     * if (leader) =>
+     * if (slot, seq) is equal =>
+     * set(slot, seq) to confirmed
      *
      * @param m
      * @param sender
@@ -193,6 +208,21 @@ public class PaxosServer extends Node {
        -----------------------------------------------------------------------*/
 
     /* -------------------------------------------------------------------------
+        Log Utils
+       -----------------------------------------------------------------------*/
+    private void setLogState(int slot, LogEntry e) {
+        // TODO: add log invariant assertions
+        LogEntry cur = log.get(slot);
+        if (cur == null) {
+            log.put(slot, e);
+        } else if (cur.seqNum() < e.seqNum()) {
+            log.put(slot, e);
+        } else {
+            assert false : "invalid state";
+        }
+    }
+
+    /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
 
@@ -203,22 +233,42 @@ public class PaxosServer extends Node {
 
     }
 
-    private void send2A(PaxosRequest req){
+    private void send2A(PaxosRequest req) {
         Paxos2A proposal = new Paxos2A(new LogEntry())
     }
 
-    private void send2B(){
-
+    private void send2B() {
+        Paxos2B p2b = new Paxos2B()
     }
 
     private boolean isLeader(Address a) {
         return a.equals(leader);
     }
-    private boolean isLeader(){
+
+    private boolean isLeader() {
         return this.address().equals(leader);
     }
+
     private boolean isReplica() {
         return !isLeader();
+    }
+
+    private boolean latestMessage(int sn){
+        if(sn > seqNum){
+            seqNum = sn;
+            return true;
+        }
+        return false;
+    }
+
+    private void serverBroadcast(Message m) {
+        for (Address a : servers) {
+            if (a.equals(this.address())) {
+                this.handleMessage(m);
+            } else {
+                send(m, a);
+            }
+        }
     }
 
     /* -------------------------------------------------------------------------
@@ -233,4 +283,5 @@ public class PaxosServer extends Node {
             System.out.println(this.address().toString() + ": " + String.join(" ", msgs));
         }
     }
+
 }

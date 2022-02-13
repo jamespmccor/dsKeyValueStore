@@ -151,9 +151,6 @@ class PBServer extends Node {
               .num());
 
     }
-//    while (!forwardedRequests.isEmpty() && forwardedRequests.firstKey() <= ack.seqNum()) {
-//      forwardedRequests.remove(forwardedRequests.firstKey());
-//    }
     forwardedRequests.remove(ack.seqNum());
     if (result != null) {
       send(new Reply(result), m.amoCommand().sender());
