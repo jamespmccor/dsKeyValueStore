@@ -908,13 +908,11 @@ public class PaxosTest extends BaseJUnitTest {
                       .addInvariant(RESULTS_OK)
                       .addInvariant(LOGS_CONSISTENT_ALL_SLOTS)
                       .addGoal(NONE_DECIDED.negate());
-        bfs(initSearchState);
-        final SearchState oneCommandExecuted = goalMatchingState();
+        final SearchState oneCommandExecuted = findGoalMatchingStateFrom(initSearchState);
 
         // From there, make sure the second command can be executed
         searchSettings.resetNetwork().clearGoals().addGoal(CLIENTS_DONE);
-        bfs(oneCommandExecuted);
-        assertGoalFound();
+        assertGoalReachableFrom(oneCommandExecuted);
 
         // Check that linearizability is preserved (with and without timers)
         searchSettings.clearGoals().addPrune(CLIENTS_DONE).maxTimeSecs(30);
@@ -961,19 +959,16 @@ public class PaxosTest extends BaseJUnitTest {
                       .addInvariant(LOGS_CONSISTENT_ALL_SLOTS)
                       .addGoal(NONE_DECIDED.negate())
                       .partition(server(1), server(2), client(1));
-        bfs(initSearchState);
-        final SearchState firstAppendSent = goalMatchingState();
+        final SearchState firstAppendSent = findGoalMatchingStateFrom(initSearchState);
 
         // Check that second append can happen in both other partitions
         searchSettings.clearGoals().addGoal(CLIENTS_DONE).resetNetwork()
                       .partition(server(1), server(3), client(2));
-        bfs(firstAppendSent);
-        assertGoalFound();
+        assertGoalReachableFrom(firstAppendSent);
 
         searchSettings.resetNetwork()
                       .partition(server(2), server(3), client(2));
-        bfs(firstAppendSent);
-        assertGoalFound();
+        assertGoalReachableFrom(firstAppendSent);
 
         // Checking that linearizability is preserved in both other partitions
         searchSettings.clearGoals().addPrune(CLIENTS_DONE).resetNetwork()
@@ -1035,12 +1030,10 @@ public class PaxosTest extends BaseJUnitTest {
                       .deliverTimers(server(5), false)
                       .deliverTimers(client(2), false)
                       .addGoal(hasCommand(server(4), 1, c1));
-        bfs(initSearchState);
-        final SearchState c1AtServer4 = goalMatchingState();
+        final SearchState c1AtServer4 = findGoalMatchingStateFrom(initSearchState);
 
         searchSettings.clearGoals().addGoal(hasCommand(server(3), 1, c1));
-        bfs(c1AtServer4);
-        final SearchState c1AtServer3 = goalMatchingState();
+        final SearchState c1AtServer3 = findGoalMatchingStateFrom(c1AtServer4);
 
         // Now, find a state where server 3 has client 2's command
         searchSettings.nodeActive(server(4), false).nodeActive(server(3), false)
@@ -1049,14 +1042,12 @@ public class PaxosTest extends BaseJUnitTest {
                       .deliverTimers(server(3), false)
                       .deliverTimers(client(1), false).clearGoals()
                       .addGoal(hasCommand(server(5), 1, c2));
-        bfs(c1AtServer3);
-        final SearchState c2AtServer5 = goalMatchingState();
+        final SearchState c2AtServer5 = findGoalMatchingStateFrom(c1AtServer3);
 
         searchSettings.nodeActive(server(3), true)
                       .deliverTimers(server(3), true).clearGoals()
                       .addGoal(hasCommand(server(3), 1, c2));
-        bfs(c2AtServer5);
-        final SearchState c2AtServer3 = goalMatchingState();
+        final SearchState c2AtServer3 = findGoalMatchingStateFrom(c2AtServer5);
 
         // Now, clear the prunes and find a state where server 2 has c1
         searchSettings.clear().maxTimeSecs(30).addInvariant(slotValid(1));
@@ -1078,13 +1069,11 @@ public class PaxosTest extends BaseJUnitTest {
                       .deliverTimers(server(3), false)
                       .deliverTimers(client(2), false)
                       .addGoal(hasCommand(server(1), 1, c1));
-        bfs(c2AtServer3);
-        final SearchState c1AtServer1 = goalMatchingState();
+        final SearchState c1AtServer1 = findGoalMatchingStateFrom(c2AtServer3);
 
         // Make sure server 4 can get c1 chosen
         searchSettings.clearGoals().addGoal(hasStatus(server(4), 1, CHOSEN));
-        bfs(c1AtServer1);
-        assertGoalFound();
+        assertGoalReachableFrom(c1AtServer1);
 
         // Re-add ignored messages
         c1AtServer1.undropMessagesFrom(server(3));
@@ -1209,9 +1198,8 @@ public class PaxosTest extends BaseJUnitTest {
         initSearchState.addClientWorker(client(1), putAppendGetWorkload);
         searchSettings.clear().addInvariant(RESULTS_OK).addGoal(CLIENTS_DONE)
                       .maxTimeSecs(10).maxDepth(6).singleThreaded(true);
-        bfs(initSearchState);
 
-        final SearchState clientDone = goalMatchingState();
+        final SearchState clientDone = findGoalMatchingStateFrom(initSearchState);
         assertEquals(6, clientDone.depth());
 
         searchSettings.maxDepth(-1).clearGoals().addPrune(CLIENTS_DONE);
