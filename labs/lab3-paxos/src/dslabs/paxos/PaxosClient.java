@@ -13,7 +13,7 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 public final class PaxosClient extends Node implements Client {
 
-    public static boolean PRINT_DEBUG = false;
+    public static boolean PRINT_DEBUG = true;
 
     private final Address[] servers;
 
@@ -64,7 +64,7 @@ public final class PaxosClient extends Node implements Client {
         Message Handlers
        -----------------------------------------------------------------------*/
     private synchronized void handlePaxosReply(PaxosReply m, Address sender) {
-        debugSenderMsg(sender,"ack msg", Integer.toString(m.result().num()));
+        debugSenderMsg(sender,"ack msg", m.result() == null ? "null" : Integer.toString(m.result().num()));
         if (request.cmd().num() == m.result().num()) {
             result = m.result().result();
             notify();

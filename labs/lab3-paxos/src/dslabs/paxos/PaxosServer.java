@@ -12,7 +12,7 @@ import java.util.*;
 @EqualsAndHashCode(callSuper = true)
 public class PaxosServer extends Node {
 
-    public static boolean PRINT_DEBUG = false;
+    public static boolean PRINT_DEBUG = true;
 
     public static final int LOG_INITIAL = 1;
 
@@ -143,7 +143,9 @@ public class PaxosServer extends Node {
 
         if (isLeader()) { //TODO: maybe drop if still learning?
             if (app.alreadyExecuted(m.cmd())) {
-                send(new PaxosReply(app.execute(m.cmd())), sender);
+                if (app.execute(m.cmd()) != null) {
+                    send(new PaxosReply(app.execute(m.cmd())), sender);
+                }
             } else if (proposals.entrySet().stream().anyMatch(
                     e -> e.getValue().entry().amoCommand().equals(m.cmd()))) {
                 Map.Entry<Integer, ProposedSlot> currEntry = proposals.entrySet().stream()
@@ -157,8 +159,8 @@ public class PaxosServer extends Node {
             } else {
                 int currSlot = slot_out++;
                 LogEntry currEntry = new LogEntry(LOG_INITIAL, m.cmd(), PaxosLogSlotStatus.EMPTY);
-                send2A(currSlot, currEntry);
                 proposals.put(currSlot, new ProposedSlot(new HashSet<>(), currEntry));
+                send2A(currSlot, currEntry);
             }
         }
 
@@ -284,7 +286,7 @@ public class PaxosServer extends Node {
 
     private void send2B(int slot, int seqNum) {
         Paxos2B p2b = new Paxos2B(slot, new Ballot(seqNum, this.address()));
-        send(p2b, leader);
+        sendLeader(p2b);
     }
 
     private void setSlotChosen(int slot) {
@@ -321,6 +323,14 @@ public class PaxosServer extends Node {
             } else {
                 send(m, a);
             }
+        }
+    }
+
+    private void sendLeader(Message m) {
+        if (isLeader()) {
+            this.handleMessage(m);
+        } else {
+            send(m, leader);
         }
     }
 
