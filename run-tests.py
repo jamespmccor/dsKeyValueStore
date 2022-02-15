@@ -51,7 +51,7 @@ def make():
         subprocess.check_output(['make'], stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as ex:
         print("Could not compile sources.\n")
-        print(ex.output.decode("utf-8"))
+        print(ex.output.decode("utf-8", errors='ignore'))
         shutil.rmtree('out')
         sys.exit(3)
 
