@@ -11,9 +11,7 @@ final class ClientTimer implements Timer {
     // Your code here...
 }
 
-// Your code here...
 @Data
-class Paxos2ATimer implements Timer{
-    private final int slot;
-    private final LogEntry entry;
+class HeartBeatTimer implements Timer {
+    static final int TICK_MILLIS = 50;
 }

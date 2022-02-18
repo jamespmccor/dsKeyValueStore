@@ -426,56 +426,56 @@ public class PaxosTest extends BaseJUnitTest {
             assertTrue(clearedOrChosenSlots.contains(i));
         }
     }
-
-    @Test(timeout = 5 * 1000)
-    @PrettyTestName("Debug")
-    @Category(RunTests.class)
-    @TestPointValue(5)
-    public void debugTest() throws InterruptedException {
-        setupStates(1);
-        runState.addClientWorker(client(1), putAppendGetWorkload);
-
-        for (Node s : runState.servers()) {
-            PaxosServer p = (PaxosServer) s;
-            assertEquals(1, p.firstNonCleared());
-            assertEquals(0, p.lastNonEmpty());
-        }
-
-        runSettings.addInvariant(RESULTS_OK);
-        runSettings.addInvariant(LOGS_CONSISTENT_ALL_SLOTS);
-
-        // Also check the first 100 slots just to make sure
-        for (int i = 1; i <= 100; i++) {
-            runSettings.addInvariant(slotValid(i));
-        }
-
-        assertRunInvariantsHold();
-
-        runState.run(runSettings);
-
-        assertRunInvariantsHold();
-
-        int numLogsFull = 0;
-        Set<Integer> clearedOrChosenSlots = new HashSet<>();
-
-        for (Node n : runState.servers()) {
-            PaxosServer p = (PaxosServer) n;
-            if (p.lastNonEmpty() >= simpleWorkload.size()) {
-                numLogsFull++;
-            }
-            for (int i = 1; i <= simpleWorkload.size(); i++) {
-                PaxosLogSlotStatus s = p.status(i);
-                if (s == CLEARED || s == CHOSEN) {
-                    clearedOrChosenSlots.add(i);
-                }
-            }
-        }
-
-        assertTrue(2 * numLogsFull > runState.numServers());
-        for (int i = 1; i <= simpleWorkload.size(); i++) {
-            assertTrue(clearedOrChosenSlots.contains(i));
-        }
-    }
+//
+//    @Test(timeout = 5 * 1000)
+//    @PrettyTestName("Debug")
+//    @Category(RunTests.class)
+//    @TestPointValue(5)
+//    public void debugTest() throws InterruptedException {
+//        setupStates(1);
+//        runState.addClientWorker(client(1), putAppendGetWorkload);
+//
+//        for (Node s : runState.servers()) {
+//            PaxosServer p = (PaxosServer) s;
+//            assertEquals(1, p.firstNonCleared());
+//            assertEquals(0, p.lastNonEmpty());
+//        }
+//
+//        runSettings.addInvariant(RESULTS_OK);
+//        runSettings.addInvariant(LOGS_CONSISTENT_ALL_SLOTS);
+//
+//        // Also check the first 100 slots just to make sure
+//        for (int i = 1; i <= 100; i++) {
+//            runSettings.addInvariant(slotValid(i));
+//        }
+//
+//        assertRunInvariantsHold();
+//
+//        runState.run(runSettings);
+//
+//        assertRunInvariantsHold();
+//
+//        int numLogsFull = 0;
+//        Set<Integer> clearedOrChosenSlots = new HashSet<>();
+//
+//        for (Node n : runState.servers()) {
+//            PaxosServer p = (PaxosServer) n;
+//            if (p.lastNonEmpty() >= simpleWorkload.size()) {
+//                numLogsFull++;
+//            }
+//            for (int i = 1; i <= simpleWorkload.size(); i++) {
+//                PaxosLogSlotStatus s = p.status(i);
+//                if (s == CLEARED || s == CHOSEN) {
+//                    clearedOrChosenSlots.add(i);
+//                }
+//            }
+//        }
+//
+//        assertTrue(2 * numLogsFull > runState.numServers());
+//        for (int i = 1; i <= simpleWorkload.size(); i++) {
+//            assertTrue(clearedOrChosenSlots.contains(i));
+//        }
+//    }
 
     @Test(timeout = 5 * 1000)
     @PrettyTestName("Progress with no partition")
