@@ -13,7 +13,7 @@ import java.util.*;
 @EqualsAndHashCode(callSuper = true)
 public class PaxosServer extends Node {
 
-    public static boolean PRINT_DEBUG = true;
+    public static boolean PRINT_DEBUG = false;
 
     public static final int LOG_INITIAL = 1;
 
@@ -213,8 +213,10 @@ public class PaxosServer extends Node {
             return;
         }
         debugSenderMsg(sender, "ack 2a");
-        setLogState(m.slot(), m.entry());
-        send2B(m.slot(), m.entry().seqNum());
+        if(setLogState(m.slot(), m.entry())){
+            debugSenderMsg(sender, "ack 2a");
+            send2B(m.slot(), m.entry().seqNum());
+        }
     }
 
     /**
@@ -279,25 +281,17 @@ public class PaxosServer extends Node {
     /* -------------------------------------------------------------------------
         Log Utils
        -----------------------------------------------------------------------*/
-    private void setLogState(int slot, LogEntry e) {
-        debugMsg("set log state slot", Integer.toString(slot), "log entry", e.toString());
-        // TODO: add log invariant assertions
+    private boolean setLogState(int slot, LogEntry e) {
         LogEntry cur = log.get(slot);
-        if (cur == null) {
+        if (cur == null || (cur.seqNum() < e.seqNum())) {
+            if (slot_out <= slot) {
+                slot_out = slot + 1;
+            }
             e.status(PaxosLogSlotStatus.ACCEPTED);
             log.put(slot, e);
-        } else if (cur.seqNum() < e.seqNum()) {
-            e.status(PaxosLogSlotStatus.ACCEPTED);
-            log.put(slot, e);
+            debugMsg("set log state slot", Integer.toString(slot), "log entry", e.toString());
         }
-//        else if (cur.seqNum() == e.seqNum()) {
-//            assert false : "repeated msg when there should be none";
-//             possible with unreliable tests
-//        } else {
-//            assert false : "invalid state";
-//             possible with unreliable tests
-//
-//        }
+        return log.get(slot).seqNum() == e.seqNum();
     }
 
     private void executeLog() {
@@ -315,21 +309,19 @@ public class PaxosServer extends Node {
     }
 
     private void catchUpLog(Map<Integer, LogEntry> other) {
-        for (int i = slot_in; i < other.size(); i++) {
-            if (!log.containsKey(i)) {
+        LogEntry curr = other.get(slot_in);
+        while (curr != null && curr.status() == PaxosLogSlotStatus.CHOSEN) {
+            log.put(slot_in, curr);
+            curr = other.get(++slot_in);
+        }
+        for (int i = slot_in; i <= other.size(); i++) {
+            if (log.get(i) == null || other.get(i).seqNum() > log.get(i).seqNum()) {
                 log.put(i, other.get(i));
-            } else {
-//                // TODO: remove when safe
-//                assert log.get(i).status() == PaxosLogSlotStatus.ACCEPTED;
-                if (other.get(i).status() == PaxosLogSlotStatus.CHOSEN
-                        || (log.get(i).status() != PaxosLogSlotStatus.CHOSEN &&
-                            other.get(i).seqNum() > log.get(i).seqNum())) {
-                    log.put(i, other.get(i));
-                }
             }
         }
-    }
 
+        slot_out = Math.max(other.size() + 1, slot_out);
+    }
     /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
