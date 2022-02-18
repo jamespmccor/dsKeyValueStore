@@ -5,6 +5,7 @@ import dslabs.framework.*;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 
@@ -12,7 +13,7 @@ import java.util.*;
 @EqualsAndHashCode(callSuper = true)
 public class PaxosServer extends Node {
 
-    public static boolean PRINT_DEBUG = false;
+    public static boolean PRINT_DEBUG = true;
 
     public static final int LOG_INITIAL = 1;
 
@@ -21,7 +22,7 @@ public class PaxosServer extends Node {
     public static final int LEADER_ELECTION_SLOT = 0;
 
     public static final int GARBAGE_SLOT = -1;
-
+        
     /**
      * All servers in the Paxos group, including this one.
      */
@@ -56,6 +57,7 @@ public class PaxosServer extends Node {
         slot_in = LOG_INITIAL;
         leader_tick_miss = 0; //starts with no leader
         leader = null;
+
     }
 
 
@@ -268,7 +270,7 @@ public class PaxosServer extends Node {
         } else if (!tickLeaderAndCheckAlive()) {
             //leader is dead, attempt to become leader
             send1A();
-            set(ht, HeartBeatTimer.REPLICA_TICK_MILLIS);
+            set(ht, HeartBeatTimer.ELECTION_TICK_MILLIS);
         }
 
     }
@@ -434,9 +436,10 @@ public class PaxosServer extends Node {
         debugMsg("<-", sender.toString(), String.join(" ", msgs));
     }
 
+    private static final SimpleDateFormat sdf2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
     private void debugMsg(String... msgs) {
         if (PRINT_DEBUG) {
-            System.out.println(this.address().toString() + ": " + String.join(" ", msgs));
+            System.out.println(sdf2.format(new Date()) + " " + this.address().toString() + ": " + String.join(" ", msgs));
         }
     }
 
