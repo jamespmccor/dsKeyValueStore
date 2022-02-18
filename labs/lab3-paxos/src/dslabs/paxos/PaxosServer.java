@@ -1,6 +1,5 @@
 package dslabs.paxos;
 
-import com.google.common.collect.Multimap;
 import dslabs.atmostonce.AMOApplication;
 import dslabs.framework.*;
 import lombok.EqualsAndHashCode;
@@ -13,7 +12,7 @@ import java.util.*;
 @EqualsAndHashCode(callSuper = true)
 public class PaxosServer extends Node {
 
-    public static boolean PRINT_DEBUG = true;
+    public static boolean PRINT_DEBUG = false;
 
     public static final int LOG_INITIAL = 1;
 
@@ -32,9 +31,6 @@ public class PaxosServer extends Node {
     private final Ballot ballot;
     private final AMOApplication<Application> app;
     private final Map<Integer, ProposedSlot> proposals; // leader specific
-
-    private int seqNum;
-    private Multimap<Address, Address> votes;
 
     private Address leader;
     private int leader_tick_miss;
@@ -60,7 +56,6 @@ public class PaxosServer extends Node {
         slot_in = LOG_INITIAL;
         leader_tick_miss = 0; //starts with no leader
         leader = null;
-
     }
 
 
@@ -68,7 +63,7 @@ public class PaxosServer extends Node {
     public void init() {
         proposals.put(LEADER_ELECTION_SLOT, new ProposedSlot(new HashSet<>(), null));
         proposals.put(GARBAGE_SLOT, new ProposedSlot(new HashSet<>(), null));
-        set(new HeartBeatTimer(), HeartBeatTimer.TICK_MILLIS);
+        set(new HeartBeatTimer(), HeartBeatTimer.SERVER_TICK_MILLIS);
     }
 
     /* -------------------------------------------------------------------------
@@ -153,7 +148,6 @@ public class PaxosServer extends Node {
         Message Handlers
        -----------------------------------------------------------------------*/
     private void handlePaxosRequest(PaxosRequest m, Address sender) {
-
         if (isLeader()) { //TODO: maybe drop if still learning?
             debugSenderMsg(sender, "ack paxos req and is leader");
             if (app.alreadyExecuted(m.cmd())) {
@@ -177,13 +171,12 @@ public class PaxosServer extends Node {
                 send2A(currSlot, currEntry);
             }
         }
-
     }
 
     // leader election
     private void handlePaxos1A(Paxos1A m, Address sender) {
-        debugSenderMsg(sender, "ack 1a, ballot", m.ballot().toString());
-        if (!checkLeaderAlive() && m.ballot().compareTo(ballot) >= 0) {
+        if (!tickLeaderAndCheckAlive() && m.ballot().compareTo(ballot) >= 0) {
+            debugSenderMsg(sender, "ack 1a, ballot", m.ballot().toString());
             //might have to save ballot, but I think it's fine
             ballot.seqNum(m.ballot().seqNum());
             send1B(new Ballot(m.ballot().seqNum(), sender));
@@ -252,8 +245,8 @@ public class PaxosServer extends Node {
         }
     }
 
-    private void handleHeartBeat(HeartBeat tick, Address sender){
-        if(tick.leaderBallot().compareTo(ballot) > 0){
+    private void handleHeartBeat(HeartBeat tick, Address sender) {
+        if (tick.leaderBallot().compareTo(ballot) > 0) {
 
             updateLeader(sender);
             ballot.seqNum(tick.leaderBallot().seqNum());
@@ -271,12 +264,13 @@ public class PaxosServer extends Node {
     private void onHeartBeatTimer(HeartBeatTimer ht) {
         if (isLeader()) {
             sendHeartBeat();
-        } else if (!checkLeaderAlive()) {
+            set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
+        } else if (!tickLeaderAndCheckAlive()) {
             //leader is dead, attempt to become leader
-            leader_tick_miss = REPLICA_LEADER_WAIT;
             send1A();
+            set(ht, HeartBeatTimer.REPLICA_TICK_MILLIS);
         }
-        set(ht, HeartBeatTimer.TICK_MILLIS);
+
     }
 
 
@@ -323,11 +317,11 @@ public class PaxosServer extends Node {
             if (!log.containsKey(i)) {
                 log.put(i, other.get(i));
             } else {
-                // TODO: remove when safe
-                assert log.get(i).status() == PaxosLogSlotStatus.ACCEPTED;
-
+//                // TODO: remove when safe
+//                assert log.get(i).status() == PaxosLogSlotStatus.ACCEPTED;
                 if (other.get(i).status() == PaxosLogSlotStatus.CHOSEN
-                        || other.get(i).seqNum() > log.get(i).seqNum()) {
+                        || (log.get(i).status() != PaxosLogSlotStatus.CHOSEN &&
+                            other.get(i).seqNum() > log.get(i).seqNum())) {
                     log.put(i, other.get(i));
                 }
             }
@@ -361,8 +355,8 @@ public class PaxosServer extends Node {
         sendServer(p2b, leader);
     }
 
-    private void sendHeartBeat(){
-        ballot.seqNum(ballot.seqNum()+1);
+    private void sendHeartBeat() {
+        ballot.seqNum(ballot.seqNum() + 1);
         debugMsg("sending heartbeat", ballot.toString());
         serverBroadcast(new HeartBeat(ballot, log));
 
@@ -375,7 +369,7 @@ public class PaxosServer extends Node {
     private void ack1B(Paxos1B b, Address sender) {
         proposals.get(LEADER_ELECTION_SLOT).received2B().add(sender);
         catchUpLog(b.log());
-        debugMsg(Integer.toString(proposals.get(LEADER_ELECTION_SLOT).received2B().size()),"/", Integer.toString(servers.length), "ballot", ballot.toString());
+        debugMsg(Integer.toString(proposals.get(LEADER_ELECTION_SLOT).received2B().size()), "/", Integer.toString(servers.length), "ballot", ballot.toString());
         if (proposals.get(LEADER_ELECTION_SLOT).received2B().size() > servers.length / 2) {
             leader = address();
         }
@@ -404,12 +398,12 @@ public class PaxosServer extends Node {
         return !isLeader();
     }
 
-    private boolean checkLeaderAlive() {
+    private boolean tickLeaderAndCheckAlive() {
         leader_tick_miss--;
         return leader_tick_miss > 0;
     }
 
-    private void updateLeader(Address newLeader){
+    private void updateLeader(Address newLeader) {
         leader_tick_miss = REPLICA_LEADER_WAIT;
         leader = newLeader;
         proposals.get(LEADER_ELECTION_SLOT).received2B().clear();
@@ -417,12 +411,11 @@ public class PaxosServer extends Node {
 
     private void serverBroadcast(Message m) {
         for (Address a : servers) {
-            if (a.equals(this.address())) {
-                this.handleMessage(m);
-            } else {
+            if (!a.equals(this.address())) {
                 send(m, a);
             }
         }
+        sendServer(m, this.address());
     }
 
     private void sendServer(Message m, Address dest) {
