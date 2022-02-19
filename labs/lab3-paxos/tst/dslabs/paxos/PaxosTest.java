@@ -563,6 +563,7 @@ public class PaxosTest extends BaseJUnitTest {
 
         runSettings.partition(server(1), server(2), server(3), client(1));
 
+        System.out.println("******NETWORK NOW IS 1 2 3*******");
         runState.start(runSettings);
 
         sendCommandAndCheck(client1, put("foo", "bar"), putOk());
@@ -570,6 +571,7 @@ public class PaxosTest extends BaseJUnitTest {
         runState.stop();
         runSettings.resetNetwork();
         runSettings.partition(server(3), server(4), server(5), client(2));
+        System.out.println("*******NETWORK NOW IS 3 4 5******");
         runState.start(runSettings);
 
         sendCommandAndCheck(client2, get("foo"), getResult("bar"));

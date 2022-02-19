@@ -7,12 +7,12 @@ import lombok.Data;
 @AllArgsConstructor
 @Data
 public class LogEntry {
-    private int seqNum;
+    private Ballot ballot;
     private AMOCommand amoCommand;
     private PaxosLogSlotStatus status;
 
     public LogEntry(LogEntry l) {
-        seqNum = l.seqNum;
+        ballot = l.ballot;
         amoCommand = l.amoCommand;
         status = l.status;
     }

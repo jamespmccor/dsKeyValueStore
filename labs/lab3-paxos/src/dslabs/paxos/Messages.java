@@ -22,6 +22,7 @@ class Paxos1B implements Message {
 class Paxos2A implements Message {
     private final int slot;
     private final LogEntry entry;
+    private final Ballot leaderBallot;
 }
 
 @Data
