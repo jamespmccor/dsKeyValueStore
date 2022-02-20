@@ -13,7 +13,7 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 public final class PaxosClient extends Node implements Client {
 
-    public static boolean PRINT_DEBUG = false;
+    public static boolean PRINT_DEBUG = true;
 
     private final Address[] servers;
 
@@ -42,6 +42,7 @@ public final class PaxosClient extends Node implements Client {
         request = new PaxosRequest(new AMOCommand(seqNum, this.address(), command));
         result = null;
 
+        debugMsg("client send", Integer.toString(request.cmd().num()));
         broadcast(request, servers);
         set(new ClientTimer(request), ClientTimer.CLIENT_RETRY_MILLIS);
     }

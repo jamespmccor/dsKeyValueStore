@@ -12,6 +12,9 @@ public class Ballot implements Comparable<Ballot> {
         this.seqNum = seqNum;
         this.sender = sender;
     }
+    public Ballot(Ballot b){
+        this(b.seqNum, b.sender);
+    }
 
     public int compareTo(Ballot b) {
         return seqNum != b.seqNum ? Integer.compare(seqNum, b.seqNum) :
