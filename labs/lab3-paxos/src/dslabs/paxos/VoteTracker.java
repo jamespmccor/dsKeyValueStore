@@ -76,6 +76,8 @@ public class VoteTracker {
           }
           // add ballot, return t/f depending on whether already there
           boolean accepted = votes.put(logEntry.slot(), logEntry.ballot().sender());
+
+//          System.out.println("accepted: " + votes.get(logEntry.slot()).toString());
           if (accepted) {
             confirmProposedLog(logEntry.slot());
           }
@@ -86,6 +88,7 @@ public class VoteTracker {
           votes.removeAll(logEntry.slot());
           log.updateLog(logEntry.slot(), logEntry);
           votes.put(logEntry.slot(), logEntry.ballot().sender());
+//          System.out.println("accepted: " + votes.get(logEntry.slot()).toString());
 
           if (canSetLogStateChosen(logEntry.slot())) {
             confirmProposedLog(logEntry.slot());

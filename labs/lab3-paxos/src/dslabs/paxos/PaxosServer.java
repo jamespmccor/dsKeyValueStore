@@ -17,7 +17,7 @@ public class PaxosServer extends Node {
     FOLLOWER, LEADER, ELECTING_LEADER
   }
 
-  public static boolean PRINT_DEBUG = true;
+  public static boolean PRINT_DEBUG = false;
 
   public static final int LOG_INITIAL = 1;
 
@@ -145,7 +145,7 @@ public class PaxosServer extends Node {
      -----------------------------------------------------------------------*/
   private void handlePaxosRequest(PaxosRequest m, Address sender) {
     if (isLeader()) {
-      debugSenderMsg(sender, "ack paxos req num", Integer.toString(m.cmd().num()));
+      debugSenderMsg(sender, "ack paxos req num", Integer.toString(m.cmd().num()), m.toString());
       if (app.alreadyExecuted(m.cmd())) {
         if (app.execute(m.cmd()) != null) {
           send(new PaxosReply(app.execute(m.cmd())), sender);
@@ -205,7 +205,13 @@ public class PaxosServer extends Node {
       return;
     }
 
-    log.updateLog(m.entry().slot(), m.entry());
+    LogEntry existingLog = log.getLog(m.entry().slot());
+    if (existingLog == null ||
+        (m.entry().status().compareTo(existingLog.status()) > 0 ||
+        m.entry().ballot().seqNum() > existingLog.ballot().seqNum())) {
+      log.updateLog(m.entry().slot(), m.entry());
+    }
+
     debugSenderMsg(sender, "voted 2a slot", Integer.toString(m.entry().slot()));
     send2B(m.entry());
   }
@@ -218,13 +224,15 @@ public class PaxosServer extends Node {
    * @param sender
    */
   private void handlePaxos2B(Paxos2B m, Address sender) {
-    debugSenderMsg(sender, "ack 2b");
+    debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
     if (!isLeader()) {
       debugSenderMsg(sender, "ignored b/c not leader");
       return;
     }
 
-    voteTracker.vote(m.entry());
+    if (!voteTracker.vote(m.entry())) {
+      debugMsg("ignored vote", m.entry().toString());
+    }
     executeLog();
   }
 

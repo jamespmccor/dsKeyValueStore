@@ -13,7 +13,7 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 public final class PaxosClient extends Node implements Client {
 
-    public static boolean PRINT_DEBUG = true;
+    public static boolean PRINT_DEBUG = false;
 
     private final Address[] servers;
 

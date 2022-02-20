@@ -13,7 +13,7 @@ import lombok.Data;
 @Data
 public class PaxosLog {
 
-  public static final boolean INVARIANT_CHECKS = true;
+  public static final boolean INVARIANT_CHECKS = false;
 
   public static final int LOG_INITIAL = 1;
 
@@ -31,7 +31,7 @@ public class PaxosLog {
 
     min_slot = LOG_INITIAL;
     max_slot = LOG_INITIAL - 1;
-    min_slot_unexecuted = LOG_INITIAL - 1;
+    min_slot_unexecuted = LOG_INITIAL;
   }
 
   public void updateLog(int slot, LogEntry logEntry) {
@@ -60,15 +60,12 @@ public class PaxosLog {
     if (INVARIANT_CHECKS && !fastForward) {
       if (existingLog != null) {
         assert
-            logEntry.status().compareTo(existingLog.status()) > 0 :
-            "can only go in order of status: " + logEntry + "\n\n" + this;
-        assert
-            logEntry.ballot().seqNum() > existingLog.ballot().seqNum() :
-            "can only be overwritten if in a higher round" + logEntry + "\n\n" + this;
+            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().seqNum() > existingLog.ballot().seqNum() :
+            "can only go in order of status || can only be overwritten if in a higher round failed: " + logEntry + "\n\n" + this;
       }
-      assert
-          logEntry.status() != PaxosLogSlotStatus.CHOSEN :
-          "don't allow chosen status log entries" + logEntry + "\n\n" + this;
+//      assert
+//          logEntry.status() != PaxosLogSlotStatus.CHOSEN :
+//          "don't allow chosen status log entries" + logEntry + "\n\n" + this;
     }
 
     if (existingLog != null) {
@@ -80,10 +77,6 @@ public class PaxosLog {
     }
     log.put(slot, logEntry);
 
-    // update state variables
-    if (logEntry.status() == PaxosLogSlotStatus.CHOSEN && slot == min_slot_unexecuted + 1) {
-      min_slot_unexecuted++;
-    }
     max_slot = Math.max(max_slot, slot);
   }
 
@@ -98,11 +91,8 @@ public class PaxosLog {
 
     existingLog.status(PaxosLogSlotStatus.CHOSEN);
 
-    // update state variables
-    if (slot == min_slot_unexecuted + 1) {
-      min_slot_unexecuted++;
-    }
     max_slot = Math.max(max_slot, slot);
+//    System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
   }
 
   /**
