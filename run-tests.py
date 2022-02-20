@@ -201,7 +201,7 @@ def main():
 
     parser.add_argument('--no-timeouts', action='store_true',
                         help="stop tests from timing out")
-    parser.add_argument('-g', '--log-level', nargs='?', type=str,
+    parser.add_argument('-g', '--paxosLog-level', nargs='?', type=str,
                         help="level the default Java util logging should use")
     parser.add_argument('-ea', '--assertions', action='store_true',
                         help="enable Java assertions")

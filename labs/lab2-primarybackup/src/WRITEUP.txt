@@ -67,7 +67,7 @@ James - 10
 Any feedback about the lab:
 - Debugger was really inconsistent since it could be only used on the search tests even
   though all test theoretically should be able to generate a trace.
-- The log of events was sometimes helpful but because there were so many events it made
+- The paxosLog of events was sometimes helpful but because there were so many events it made
   more sense for us to implement our own print debugger that displays state.
 - The way the view server was explained made it seem like there were a lot more states
   than we ended up and it took a couple tries to understand that 99% of the state changes

@@ -219,7 +219,7 @@ That happened a little fast. Let's turn on the built-in logging to watch it in
 gory detail.
 
 ```
-$ ./run-tests.py --lab 0 --test-num 1 --log-level FINEST
+$ ./run-tests.py --lab 0 --test-num 1 --paxosLog-level FINEST
 
 --------------------------------------------------
 TEST 1: Single client ping test [RUN] (0pts)

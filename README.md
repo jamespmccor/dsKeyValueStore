@@ -253,7 +253,7 @@ Use of an IDE is strongly recommended; an IntelliJ project configuration is
 included in the handout files. Java has excellent support for debugging, even
 for multi-threaded applications.
 
-Should you want to log any data, you can use the `java.util.logging` package,
+Should you want to paxosLog any data, you can use the `java.util.logging` package,
 available in any class conveniently with the `@Log` Lombok annotation. An
 argument to `run-tests.py` will let you change the logging level; the default
 logging level is `WARNING`. *IMPORTANT:* Make sure your code doesn't emit

@@ -38,7 +38,7 @@ causes the replica group to stop being responsible for the shard holding the
 before or after the reconfiguration. If before, the `Put` should take effect and
 the new owner of the shard will see its effect; if after, the `Put` won't take
 effect and client must re-try at the new owner. The recommended approach is to
-have each replica group use Paxos to log not just the sequence of `Put`s,
+have each replica group use Paxos to paxosLog not just the sequence of `Put`s,
 `Append`s, and `Get`s but also the sequence of reconfigurations.
 
 Reconfiguration also requires interaction among the replica groups. For example,
@@ -63,7 +63,7 @@ groups) is patterned at a high level on a number of systems: Flat Datacenter
 Storage, BigTable, Spanner, FAWN, Apache HBase, Rosebud, and many others. These
 systems differ in many details from this lab, though, and are also typically
 more sophisticated and capable. For example, your lab lacks persistent storage
-for key/value pairs and for the Paxos log; it cannot evolve the sets of peers in
+for key/value pairs and for the Paxos paxosLog; it cannot evolve the sets of peers in
 each Paxos group; its data and query models are very simple; and handoff of
 shards is slow and doesn't allow concurrent client access.
 
@@ -211,12 +211,12 @@ You should pass the part 2 tests; execute them with `run-tests.py --lab 4 --part
 
 ### Hints
 - You should handle all communication between replicas in the same group through
-  Paxos. Replicas should propose operations to the Paxos log, and they will all
+  Paxos. Replicas should propose operations to the Paxos paxosLog, and they will all
   process them in the same order. This should include key-value operations and
   also any operations needed for reconfiguration. You should create your own
   sub-Interface of `Command` which all of your reconfiguration-specific
   operations inherit from so that you can easily propose these operations to the
-  Paxos log.
+  Paxos paxosLog.
 - The easiest way for a replica/group to send a message to a different group is
   by broadcasting the message to the entire group.
 - Your server should respond with an error message to a client operation on a
