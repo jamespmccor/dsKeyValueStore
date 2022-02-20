@@ -63,9 +63,6 @@ public class PaxosLog {
             logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().seqNum() > existingLog.ballot().seqNum() :
             "can only go in order of status || can only be overwritten if in a higher round failed: " + logEntry + "\n\n" + this;
       }
-//      assert
-//          logEntry.status() != PaxosLogSlotStatus.CHOSEN :
-//          "don't allow chosen status log entries" + logEntry + "\n\n" + this;
     }
 
     if (existingLog != null) {
@@ -103,6 +100,10 @@ public class PaxosLog {
    */
   public boolean contains(int slot) {
     return getLog(slot) != null;
+  }
+
+  public Map<Integer, LogEntry> getLog() {
+    return log;
   }
 
   public LogEntry getLog(int slot) {

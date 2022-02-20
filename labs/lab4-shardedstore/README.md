@@ -38,7 +38,7 @@ causes the replica group to stop being responsible for the shard holding the
 before or after the reconfiguration. If before, the `Put` should take effect and
 the new owner of the shard will see its effect; if after, the `Put` won't take
 effect and client must re-try at the new owner. The recommended approach is to
-have each replica group use Paxos to paxosLog not just the sequence of `Put`s,
+have each replica group use Paxos to log not just the sequence of `Put`s,
 `Append`s, and `Get`s but also the sequence of reconfigurations.
 
 Reconfiguration also requires interaction among the replica groups. For example,

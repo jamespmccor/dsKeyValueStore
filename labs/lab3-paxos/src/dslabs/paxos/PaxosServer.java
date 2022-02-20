@@ -17,7 +17,7 @@ public class PaxosServer extends Node {
     FOLLOWER, LEADER, ELECTING_LEADER
   }
 
-  public static boolean PRINT_DEBUG = false;
+  public static boolean PRINT_DEBUG = true;
 
   public static final int LOG_INITIAL = 1;
 
@@ -41,8 +41,6 @@ public class PaxosServer extends Node {
   private Ballot leaderBallot;
   private int seqNum;
 
-  private int leader_tick_miss;
-
   /* -------------------------------------------------------------------------
       Construction and Initialization
      -----------------------------------------------------------------------*/
@@ -56,8 +54,8 @@ public class PaxosServer extends Node {
 
     serverState = ServerState.ELECTING_LEADER;
     serverNum = Arrays.binarySearch(servers, this.address());
-    leaderBallot = new Ballot(seqNum, servers[0]);
     seqNum = 1;
+    leaderBallot = new Ballot(seqNum, servers[0]);
   }
 
 
@@ -68,6 +66,8 @@ public class PaxosServer extends Node {
     } else {
       setServerState(ServerState.FOLLOWER);
     }
+//    set(new HeartBeatTimer(), HeartBeatTimer.SERVER_TICK_MILLIS);
+    set(new LeaderTimer(), LeaderTimer.SERVER_TICK_MILLIS);
   }
 
     /* -------------------------------------------------------------------------
@@ -202,13 +202,14 @@ public class PaxosServer extends Node {
     }
 
     if (!isLeader(sender)) {
+      debugMsg("reject sender is not leader", Integer.toString(m.entry().slot()));
       return;
     }
 
     LogEntry existingLog = log.getLog(m.entry().slot());
-    if (existingLog == null ||
-        (m.entry().status().compareTo(existingLog.status()) > 0 ||
-        m.entry().ballot().seqNum() > existingLog.ballot().seqNum())) {
+    if (existingLog == null || (m.entry().status().compareTo(existingLog.status()) > 0
+        || m.entry().ballot().seqNum() > existingLog.ballot().seqNum())) {
+      debugSenderMsg(sender, "updated log 2a slot", Integer.toString(m.entry().slot()));
       log.updateLog(m.entry().slot(), m.entry());
     }
 
@@ -236,29 +237,33 @@ public class PaxosServer extends Node {
     executeLog();
   }
 
-//    private void handleHeartBeat(HeartBeat tick, Address sender) {
-//        if (!isLeader() && tick.leaderBallot().compareTo(leaderBallot) >= 0) {
-//            debugSenderMsg(sender, "heartbeat ack", tick.leaderBallot().toString());
-//            updateLeader(tick.leaderBallot());
-//            catchUpLog(tick.leaderLog());
-//        }
-//    }
-  //  private void handleHeartBeatResponse
+  private void handleHeartBeat(HeartBeat tick, Address sender) {
+    if (isFollower() && tick.leaderBallot().compareTo(leaderBallot) >= 0) {
+      debugSenderMsg(sender, "heartbeat ack", tick.leaderBallot().toString());
+//          updateLeader(tick.leaderBallot());
+      log.fastForwardLog(tick.log());
+      executeLog();
+
+      // rebroadcast accepted values so leader can add them to the vote.
+      for (LogEntry e : tick.log().getLog().values()) {
+        if (e.status() == PaxosLogSlotStatus.ACCEPTED) {
+          send2B(e);
+        }
+      }
+    }
+  }
 
 
   /* -------------------------------------------------------------------------
       Timer Handlers
      -----------------------------------------------------------------------*/
-//  private void onHeartBeatTimer(HeartBeatTimer ht) {
-//    if (isLeader()) {
-//      sendHeartBeat();
-//      set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
-//    } else if (!tickLeaderAndCheckAlive()) {
-//      //leader is dead, attempt to become leader
-//      send1A();
-//      set(ht, HeartBeatTimer.ELECTION_TICK_MILLIS);
-//    }
-//  }
+
+  private void onLeaderTimer(LeaderTimer lt) {
+    if (isLeader()) {
+      sendHeartBeat();
+      set(lt, HeartBeatTimer.ELECTION_TICK_MILLIS);
+    }
+  }
 
     /* -------------------------------------------------------------------------
         Log Utils
@@ -279,6 +284,7 @@ public class PaxosServer extends Node {
       cur = log.getAndIncrementFirstUnexecuted();
     }
   }
+
     /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
@@ -320,6 +326,10 @@ public class PaxosServer extends Node {
     return serverState == ServerState.LEADER;
   }
 
+  private boolean isFollower() {
+    return serverState == ServerState.FOLLOWER;
+  }
+
   private boolean isLeader(Address sender) {
     return sender.equals(leaderBallot.sender());
   }
@@ -328,20 +338,13 @@ public class PaxosServer extends Node {
     return serverState != ServerState.ELECTING_LEADER;
   }
 
-  private boolean tickLeaderAndCheckAlive() {
-    leader_tick_miss--;
-    return checkLeaderAlive();
+  private void sendHeartBeat() {
+    debugMsg("sending heartbeat");
+    serverBroadcast(new HeartBeat(getBallot(), log));
   }
-//
-//  private boolean newLeader(Ballot possibleLeader) {
-//    if (possibleLeader.compareTo(leaderBallot) >= 0) {
-//      updateLeader(possibleLeader);
-//    }
-//    return isLeader(possibleLeader);
-//  }
 
   private void updateLeader(Ballot newLeader) {
-    leader_tick_miss = REPLICA_LEADER_WAIT;
+//    ticks = REPLICA_LEADER_WAIT;
     leaderBallot = newLeader;
   }
 

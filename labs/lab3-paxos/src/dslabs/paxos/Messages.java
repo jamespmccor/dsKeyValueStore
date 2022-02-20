@@ -32,7 +32,7 @@ class Paxos2B implements Message {
 @Data
 class HeartBeat implements Message {
     private final Ballot leaderBallot;
-    private final Map<Integer, LogEntry> leaderLog;
+    private final PaxosLog log;
 }
 
 @Data

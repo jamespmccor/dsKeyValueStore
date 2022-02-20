@@ -40,19 +40,19 @@ send a command to these servers). This means that it should be robust to dropped
 messages, as long as network connectivity is eventually restored.
 
 You should achieve this by implementing the multi-instance Paxos algorithm.
-Multi-instance Paxos can be viewed as a way for servers to agree on a shared paxosLog
-of clients' commands. Agreement for each "slot" in the paxosLog is reached separately
-by a different instance of Paxos, and servers can then play the paxosLog forward in
+Multi-instance Paxos can be viewed as a way for servers to agree on a shared log
+of clients' commands. Agreement for each "slot" in the log is reached separately
+by a different instance of Paxos, and servers can then play the log forward in
 order, executing commands on their own local copy of the application, as long as
 each command they execute is "stable" (i.e., agreement has been reached for that
 command and all preceding commands). As long as no two servers ever decide
-different values for a paxosLog slot (and as long as the underlying application is
+different values for a log slot (and as long as the underlying application is
 deterministic), this approach will guarantee linearizability.
 
 You *do not* need to implement server recovery. You should assume that servers
 only fail by permanently crashing (or by being temporarily unreachable over the
-network). You will, however, implement paxosLog compaction, a garbage collection
-mechanism commonly used in practice to prevent the shared paxosLog from growing
+network). You will, however, implement log compaction, a garbage collection
+mechanism commonly used in practice to prevent the shared log from growing
 without end and exhausting the memory on servers.
 
 Your Paxos-based replicated state machine will have some limitations that would
@@ -106,20 +106,20 @@ acceptable to a majority. The Paxos protocol ensures safety in this case.
 
 
 ## Garbage Collection
-A long-running Paxos deployment must forget about paxosLog slots that are no longer
+A long-running Paxos deployment must forget about log slots that are no longer
 needed and free the memory storing information about those slots. While PMMC
 proposes one mechanism for garbage collection, for this lab we will do something
 slightly simpler.
 
-For our purposes, we will say that a command in a paxosLog slot is needed if it has
+For our purposes, we will say that a command in a log slot is needed if it has
 not been processed on all servers; it is not okay to delete commands as soon as
-they are processed on the local server. In order to implement this paxosLog
+they are processed on the local server. In order to implement this log
 compaction, each server will have to inform the other servers about the latest
-point in its own paxosLog that is "stable." The easiest approach is to piggyback this
+point in its own log that is "stable." The easiest approach is to piggyback this
 information on the periodic heartbeat protocol. Each follower server responds to
 heartbeats with a message containing the latest slot they have executed
 (`slot_out` in PMMC terms). Then, the active leader should be able to figure out
-the latest paxosLog slot which has been executed on all nodes; it can then include
+the latest log slot which has been executed on all nodes; it can then include
 that information in subsequent heartbeats. Once a node learns that all nodes
 have executed all slots up to some slot `i`, it can then safely discard all
 information for slots less than or equal to `i`.
@@ -130,7 +130,7 @@ simple way to bring a follower node up to date is by having the active leader
 send it missing decisions when the follower sends its latest executed slot in
 the above protocol.
 
-Your garbage collection mechanism should be able to free memory from old paxosLog
+Your garbage collection mechanism should be able to free memory from old log
 slots when all Paxos servers can communicate with each other; it does not need
 to make progress when only a majority can communicate. This is one weakness of
 the simplified approach we describe. It is possible to do garbage collection of
@@ -180,11 +180,11 @@ You should pass the lab 3 tests; execute them with `./run-tests.py --lab 3`.
   quorum, that value is eventually decided in that slot.
 * Your implementation should make use of the `atmostonce` package as in previous
   labs; it should be able to handle duplicates of the same `Command` in the
-  Paxos paxosLog. (Though you might want to try to keep them out as a performance
+  Paxos log. (Though you might want to try to keep them out as a performance
   optimization.)
 * The easiest way for a client to send requests to the system is by broadcasting
   them to all servers.
-* Your implementation needs to be able to handle "holes" in the Paxos paxosLog. That
+* Your implementation needs to be able to handle "holes" in the Paxos log. That
   is, when completing the first phase of Paxos, a server might see previously
   accepted values for a slot but not previous slots. Your implementation should
   still make progress in this case.

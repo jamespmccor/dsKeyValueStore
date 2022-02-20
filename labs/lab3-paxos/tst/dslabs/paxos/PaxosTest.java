@@ -942,6 +942,8 @@ public class PaxosTest extends BaseJUnitTest {
 
         // Run the new batch of clients to make sure we're not in deadlock
         runSettings.reconnect();
+        System.out.println("finish");
+
         runState.run(runSettings);
     }
 
