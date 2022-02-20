@@ -211,12 +211,12 @@ You should pass the part 2 tests; execute them with `run-tests.py --lab 4 --part
 
 ### Hints
 - You should handle all communication between replicas in the same group through
-  Paxos. Replicas should propose operations to the Paxos paxosLog, and they will all
+  Paxos. Replicas should propose operations to the Paxos log, and they will all
   process them in the same order. This should include key-value operations and
   also any operations needed for reconfiguration. You should create your own
   sub-Interface of `Command` which all of your reconfiguration-specific
   operations inherit from so that you can easily propose these operations to the
-  Paxos paxosLog.
+  Paxos log.
 - The easiest way for a replica/group to send a message to a different group is
   by broadcasting the message to the entire group.
 - Your server should respond with an error message to a client operation on a
