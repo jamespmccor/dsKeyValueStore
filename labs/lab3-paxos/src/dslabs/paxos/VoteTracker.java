@@ -4,13 +4,14 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
 import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
+import java.io.Serializable;
 import lombok.ToString;
 
 /**
  * Proposals is responsible for tracking proposed log entries. It gathers ballots from servers and if a
  */
 @ToString
-public class VoteTracker {
+public class VoteTracker implements Serializable {
 
   public static final boolean INVARIANT_CHECK = DebugUtils.VoteTracker_INVARIANTS;
 

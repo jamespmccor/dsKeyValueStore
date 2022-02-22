@@ -1,10 +1,11 @@
 package dslabs.paxos;
 
 import dslabs.framework.Address;
+import java.io.Serializable;
 import lombok.Data;
 
 @Data
-public class Ballot implements Comparable<Ballot> {
+public class Ballot implements Comparable<Ballot>, Serializable {
 
     public static final Ballot INVALID_BALLOT = new Ballot(-1, null);
 

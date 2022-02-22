@@ -2,15 +2,13 @@ package dslabs.paxos;
 
 import dslabs.atmostonce.AMOApplication;
 import dslabs.framework.*;
+import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-
-@ToString(callSuper = true)
-@EqualsAndHashCode(callSuper = true)
 public class PaxosServer extends Node {
 
   public enum ServerState {
@@ -21,14 +19,13 @@ public class PaxosServer extends Node {
 
   public static final int REPLICA_LEADER_WAIT = 1;
   public static final int REPLICA_ELECTING_LEADER_WAIT = 3;
-  public static final int REPLICA_FOLLOWER_WAIT = 5;
+  public static final int REPLICA_FOLLOWER_WAIT = 4;
   public static final int INITIAL_BALLOT_NUMBER = -1;
 
   /**
    * All servers in the Paxos group, including this one.
    */
   private final Address[] servers;
-  private final int serverNum;
 
   private final AMOApplication<Application> app;
   private final VoteTracker voteTracker;
@@ -52,7 +49,6 @@ public class PaxosServer extends Node {
 
     serverState = ServerState.ELECTING_LEADER;
     votes = new HashSet<>();
-    serverNum = Arrays.binarySearch(servers, this.address());
     leaderBallot = new Ballot(INITIAL_BALLOT_NUMBER, servers[0]);
   }
 
@@ -137,6 +133,7 @@ public class PaxosServer extends Node {
      -----------------------------------------------------------------------*/
   private void handlePaxosRequest(PaxosRequest m, Address sender) {
     if (!isLeader()) {
+//      debugMsg("ignored msg server state", serverState.toString(), m.toString());
       return;
     }
 
@@ -184,9 +181,9 @@ public class PaxosServer extends Node {
           log.fastForwardLog(m.log());
           if (voteLeaderElection(sender, m.ballot())) {
             setLeader(leaderBallot);
-            log.fillNoOps();
-            rebroadcastAcceptedLogEntries(log);
+            log.fillNoOps(leaderBallot);
             executeLog();
+            rebroadcastAcceptedLogEntries(log);
             sendHeartBeat();
           }
         }
@@ -218,7 +215,7 @@ public class PaxosServer extends Node {
    * @param sender
    */
   private void handlePaxos2A(Paxos2A m, Address sender) {
-    if (isElectingLeader()) {
+    if (isElectingLeader() || !m.leaderBallot().equals(leaderBallot)) {
       return;
     }
     debugSenderMsg(sender, "recv 2a slot", Integer.toString(m.entry().slot()));
@@ -302,6 +299,9 @@ public class PaxosServer extends Node {
     } else if (isFollower()) {
       fireFollower();
       tick = REPLICA_FOLLOWER_WAIT;
+    } else if (isElectingLeader()) {
+      fireElectingLeader();
+      tick = REPLICA_ELECTING_LEADER_WAIT;
     }
     set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
   }
@@ -313,6 +313,10 @@ public class PaxosServer extends Node {
   private void fireFollower() {
     setServerState(ServerState.ELECTING_LEADER);
     startLeaderElection();
+  }
+
+  private void fireElectingLeader() {
+    send1A(leaderBallot);
   }
 
     /* -------------------------------------------------------------------------
@@ -355,9 +359,6 @@ public class PaxosServer extends Node {
 
   private void send1B(Address sender, boolean accept, Ballot ballot) {
     debugMsg("sending 1b(" + accept + ") to", sender.toString(), "ballot", ballot.toString());
-    if (!accept && ballot.leader().equals(sender)) {
-      assert false;
-    }
     Paxos1B response = new Paxos1B(accept, ballot, log);
     sendServer(response, sender);
   }

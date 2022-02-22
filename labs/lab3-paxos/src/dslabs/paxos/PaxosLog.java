@@ -1,6 +1,7 @@
 package dslabs.paxos;
 
 import dslabs.atmostonce.AMOCommand;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Data;
@@ -11,7 +12,7 @@ import lombok.Data;
  * LOG DOES NOT HANDLE QUORUM WILL RETURN ALREADY EXECUTED == TRUE ALWAYS FOR AMOCOMMAND == NULL
  */
 @Data
-public class PaxosLog {
+public class PaxosLog implements Serializable {
 
   public static final boolean INVARIANT_CHECKS = DebugUtils.PaxosLog_INVARIANTS;
 
@@ -141,7 +142,7 @@ public class PaxosLog {
 
         // CHOSEN/ACCEPTED state
         if (logEntry.status() == PaxosLogSlotStatus.ACCEPTED && (
-            e.getValue().ballot().seqNum() > logEntry.ballot().seqNum()
+            e.getValue().ballot().compareTo(logEntry.ballot()) > 0
                 || e.getValue().status() == PaxosLogSlotStatus.CHOSEN)) {
           updateLog(e.getKey(), e.getValue(), true);
         }
@@ -149,13 +150,13 @@ public class PaxosLog {
     }
   }
 
-  public void fillNoOps() {
+  public void fillNoOps(Ballot ballot) {
     for (int i : log.keySet()) {
       // we can guarantee something happens in this case
       LogEntry logEntry = log.get(i);
 
       if (logEntry == null) {
-        updateLog(i, new LogEntry(i, Ballot.INVALID_BALLOT, null, PaxosLogSlotStatus.CHOSEN));
+        updateLog(i, new LogEntry(i, ballot, null, PaxosLogSlotStatus.CHOSEN));
       }
     }
   }
