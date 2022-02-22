@@ -4,12 +4,12 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
 import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
-import java.util.HashMap;
-import java.util.Map;
+import lombok.ToString;
 
 /**
  * Proposals is responsible for tracking proposed log entries. It gathers ballots from servers and if a
  */
+@ToString
 public class VoteTracker {
 
   public static final boolean INVARIANT_CHECK = DebugUtils.VoteTracker_INVARIANTS;
@@ -57,7 +57,7 @@ public class VoteTracker {
    * @param logEntry
    * @return whether the vote was accepted into the VoteTracker
    */
-  public boolean vote(LogEntry logEntry) {
+  public boolean vote(Address voter, LogEntry logEntry) {
     LogEntry existingLogEntry = log.getLog(logEntry.slot());
     PaxosLogSlotStatus existingLogEntryStatus = log.getLogStatus(logEntry.slot());
 
@@ -67,15 +67,15 @@ public class VoteTracker {
         // slot already used;
         return false;
       case ACCEPTED:
-        if (logEntry.ballot().seqNum() < existingLogEntry.ballot().seqNum()) {
+        if (logEntry.ballot().compareTo(existingLogEntry.ballot()) < 0) {
           // reject old ballots
           return false;
-        } else if (logEntry.ballot().seqNum() == existingLogEntry.ballot().seqNum()) {
+        } else if (logEntry.ballot().compareTo(existingLogEntry.ballot()) == 0) {
           if (INVARIANT_CHECK) {
             assert logEntry.amoCommand().equals(existingLogEntry.amoCommand());
           }
           // add ballot, return t/f depending on whether already there
-          boolean accepted = votes.put(logEntry.slot(), logEntry.ballot().sender());
+          boolean accepted = votes.put(logEntry.slot(), voter);
 
 //          System.out.println("accepted: " + votes.get(logEntry.slot()).toString());
           if (accepted) {
@@ -87,7 +87,7 @@ public class VoteTracker {
           // THIS CASE IS A REMOVE ALL AND THEN GOES TO EMPTY
           votes.removeAll(logEntry.slot());
           log.updateLog(logEntry.slot(), logEntry);
-          votes.put(logEntry.slot(), logEntry.ballot().sender());
+          votes.put(logEntry.slot(), voter);
 //          System.out.println("accepted: " + votes.get(logEntry.slot()).toString());
 
           if (canSetLogStateChosen(logEntry.slot())) {
@@ -97,7 +97,8 @@ public class VoteTracker {
         }
       case EMPTY:
       default:
-        throw new Error("unhandled LogEntry state");
+//        return false;
+        throw new Error("unhandled LogEntry state" + logEntry + this.toString());
     }
   }
 

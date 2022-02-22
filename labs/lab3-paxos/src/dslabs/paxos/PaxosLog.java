@@ -13,7 +13,7 @@ import lombok.Data;
 @Data
 public class PaxosLog {
 
-  public static final boolean INVARIANT_CHECKS = false;
+  public static final boolean INVARIANT_CHECKS = DebugUtils.PaxosLog_INVARIANTS;
 
   public static final int LOG_INITIAL = 1;
 
@@ -60,7 +60,7 @@ public class PaxosLog {
     if (INVARIANT_CHECKS && !fastForward) {
       if (existingLog != null) {
         assert
-            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().seqNum() > existingLog.ballot().seqNum() :
+            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().compareTo(existingLog.ballot()) > 0 :
             "can only go in order of status || can only be overwritten if in a higher round failed: " + logEntry + "\n\n" + this;
       }
     }
@@ -100,10 +100,6 @@ public class PaxosLog {
    */
   public boolean contains(int slot) {
     return getLog(slot) != null;
-  }
-
-  public Map<Integer, LogEntry> getLog() {
-    return log;
   }
 
   public LogEntry getLog(int slot) {
@@ -149,6 +145,17 @@ public class PaxosLog {
                 || e.getValue().status() == PaxosLogSlotStatus.CHOSEN)) {
           updateLog(e.getKey(), e.getValue(), true);
         }
+      }
+    }
+  }
+
+  public void fillNoOps() {
+    for (int i : log.keySet()) {
+      // we can guarantee something happens in this case
+      LogEntry logEntry = log.get(i);
+
+      if (logEntry == null) {
+        updateLog(i, new LogEntry(i, Ballot.INVALID_BALLOT, null, PaxosLogSlotStatus.CHOSEN));
       }
     }
   }
