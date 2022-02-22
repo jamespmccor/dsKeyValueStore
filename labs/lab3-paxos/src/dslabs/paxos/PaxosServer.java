@@ -168,6 +168,7 @@ public class PaxosServer extends Node {
         if(leaderVotes.size() > servers.length / 2){
           log.fillHoles(leaderBallot);
           setServerState(ServerState.LEADER);
+          repropose();
           sendHeartBeat();
         }
     }
@@ -284,7 +285,7 @@ public class PaxosServer extends Node {
       } else{
         set(ht, HeartBeatTimer.ELECTION_TICK_MILLIS);
       }
-    }else{
+    } else{
       set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
     }
 
@@ -334,6 +335,14 @@ public class PaxosServer extends Node {
     sendServer(new Paxos2B(new LogEntry(logEntry, getBallot())), leaderBallot.sender());
   }
 
+  private void repropose(){
+    for(LogEntry l: log.getLog().values()){
+      if(l.status() == PaxosLogSlotStatus.ACCEPTED){
+        //l.ballot(leaderBallot);
+        send2A(l);
+      }
+    }
+  }
 //
 //    private boolean ack1B(Paxos1B b, Address sender) {
 //        proposals.get(LEADER_ELECTION_SLOT).received2B().add(sender);

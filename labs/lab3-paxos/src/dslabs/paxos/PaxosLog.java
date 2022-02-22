@@ -39,6 +39,7 @@ public class PaxosLog {
   }
 
   public LogEntry getAndIncrementFirstUnexecuted() {
+    //System.out.println("min_slot_unexecuted: " + min_slot_unexecuted);
     LogEntry l = getLog(min_slot_unexecuted);
     if (l == null || l.status() != PaxosLogSlotStatus.CHOSEN) {
       return null;
@@ -89,7 +90,7 @@ public class PaxosLog {
     existingLog.status(PaxosLogSlotStatus.CHOSEN);
 
     max_slot = Math.max(max_slot, slot);
-//    System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
+    System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
   }
 
   /**
