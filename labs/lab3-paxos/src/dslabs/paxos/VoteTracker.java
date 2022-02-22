@@ -4,8 +4,6 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
 import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Proposals is responsible for tracking proposed log entries. It gathers ballots from servers and if a
@@ -65,12 +63,13 @@ public class VoteTracker {
       case CLEARED:
       case CHOSEN:
         // slot already used;
+        System.out.println("slot chosen " + existingLogEntry.toString());
         return false;
       case ACCEPTED:
-        if (logEntry.ballot().seqNum() < existingLogEntry.ballot().seqNum()) {
+        if (logEntry.ballot().roundNum() < existingLogEntry.ballot().roundNum()) {
           // reject old ballots
           return false;
-        } else if (logEntry.ballot().seqNum() == existingLogEntry.ballot().seqNum()) {
+        } else if (logEntry.ballot().roundNum() == existingLogEntry.ballot().roundNum()) {
           if (INVARIANT_CHECK) {
             assert logEntry.amoCommand().equals(existingLogEntry.amoCommand());
           }

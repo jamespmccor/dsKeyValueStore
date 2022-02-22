@@ -9,13 +9,13 @@ import java.util.Map;
 @Data
 class Paxos1A implements Message {
     private final Ballot ballot;
-    private final Map<Integer, LogEntry> log;
+    private final PaxosLog log;
 }
 
 @Data
 class Paxos1B implements Message {
     private final Ballot ballot;
-    private final Map<Integer, LogEntry> log;
+    private final PaxosLog log;
 }
 
 @Data

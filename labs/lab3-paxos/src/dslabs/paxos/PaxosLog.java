@@ -60,7 +60,7 @@ public class PaxosLog {
     if (INVARIANT_CHECKS && !fastForward) {
       if (existingLog != null) {
         assert
-            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().seqNum() > existingLog.ballot().seqNum() :
+            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().roundNum() > existingLog.ballot().roundNum() :
             "can only go in order of status || can only be overwritten if in a higher round failed: " + logEntry + "\n\n" + this;
       }
     }
@@ -145,11 +145,17 @@ public class PaxosLog {
 
         // CHOSEN/ACCEPTED state
         if (logEntry.status() == PaxosLogSlotStatus.ACCEPTED && (
-            e.getValue().ballot().seqNum() > logEntry.ballot().seqNum()
+            e.getValue().ballot().roundNum() > logEntry.ballot().roundNum()
                 || e.getValue().status() == PaxosLogSlotStatus.CHOSEN)) {
           updateLog(e.getKey(), e.getValue(), true);
         }
       }
+    }
+  }
+
+  public void fillHoles(Ballot leaderBallot){
+    for(int i = min_slot_unexecuted; i <= max_slot; i++){
+      log.putIfAbsent(i, new LogEntry(i, leaderBallot, null, PaxosLogSlotStatus.CHOSEN));
     }
   }
 

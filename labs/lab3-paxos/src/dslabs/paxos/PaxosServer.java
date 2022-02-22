@@ -14,18 +14,12 @@ import java.util.*;
 public class PaxosServer extends Node {
 
   public enum ServerState {
-    FOLLOWER, LEADER, ELECTING_LEADER
+    FOLLOWER, LEADER, ELECTING_LEADER;
   }
 
-  public static boolean PRINT_DEBUG = true;
+  public static final boolean PRINT_DEBUG = true;
+  private static final int LEADER_TICK_COUNT = 2;
 
-  public static final int LOG_INITIAL = 1;
-
-  public static final int REPLICA_LEADER_WAIT = 3;
-
-  public static final int LEADER_ELECTION_SLOT = 0;
-
-  public static final int GARBAGE_SLOT = -1;
 
   /**
    * All servers in the Paxos group, including this one.
@@ -39,7 +33,9 @@ public class PaxosServer extends Node {
 
   private ServerState serverState;
   private Ballot leaderBallot;
-  private int seqNum;
+  private int roundNum;
+  private int leaderTick;
+  private final Set<Address> leaderVotes;
 
   /* -------------------------------------------------------------------------
       Construction and Initialization
@@ -54,20 +50,15 @@ public class PaxosServer extends Node {
 
     serverState = ServerState.ELECTING_LEADER;
     serverNum = Arrays.binarySearch(servers, this.address());
-    seqNum = 1;
-    leaderBallot = new Ballot(seqNum, servers[0]);
+    roundNum = 0;
+    leaderVotes = new HashSet<>();
+    leaderBallot = getBallot();
   }
 
 
   @Override
   public void init() {
-    if (this.address().equals(servers[0])) {
-      setServerState(ServerState.LEADER);
-    } else {
-      setServerState(ServerState.FOLLOWER);
-    }
-//    set(new HeartBeatTimer(), HeartBeatTimer.SERVER_TICK_MILLIS);
-    set(new LeaderTimer(), LeaderTimer.SERVER_TICK_MILLIS);
+    set(new HeartBeatTimer(), HeartBeatTimer.SERVER_TICK_MILLIS);
   }
 
     /* -------------------------------------------------------------------------
@@ -160,6 +151,27 @@ public class PaxosServer extends Node {
     }
   }
 
+  private void handlePaxos1A(Paxos1A m, Address sender){
+    if(serverState == ServerState.ELECTING_LEADER
+      && m.ballot().compareTo(leaderBallot) > 0){
+        updateLeader(m.ballot());
+        send1B();
+    }
+  }
+
+  private void handlePaxos1B(Paxos1B m, Address sender){
+    if(serverState == ServerState.ELECTING_LEADER
+      && m.ballot().equals(leaderBallot)){
+        debugSenderMsg(sender, "ack 1b round", Integer.toString(roundNum));
+        leaderVotes.add(sender);
+        log.fastForwardLog(m.log());
+        if(leaderVotes.size() > servers.length / 2){
+          log.fillHoles(leaderBallot);
+          setServerState(ServerState.LEADER);
+          sendHeartBeat();
+        }
+    }
+  }
 //    // leader election
 //    private void handlePaxos1A(Paxos1A m, Address sender) {
 //        if (!checkLeaderAlive() && m.ballot().compareTo(leaderBallot) > 0) {
@@ -208,7 +220,7 @@ public class PaxosServer extends Node {
 
     LogEntry existingLog = log.getLog(m.entry().slot());
     if (existingLog == null || (m.entry().status().compareTo(existingLog.status()) > 0
-        || m.entry().ballot().seqNum() > existingLog.ballot().seqNum())) {
+        || m.entry().ballot().roundNum() > existingLog.ballot().roundNum())) {
       debugSenderMsg(sender, "updated log 2a slot", Integer.toString(m.entry().slot()));
       log.updateLog(m.entry().slot(), m.entry());
     }
@@ -238,9 +250,10 @@ public class PaxosServer extends Node {
   }
 
   private void handleHeartBeat(HeartBeat tick, Address sender) {
-    if (isFollower() && tick.leaderBallot().compareTo(leaderBallot) >= 0) {
+    if (!isLeader() && tick.leaderBallot().compareTo(leaderBallot) >= 0) {
       debugSenderMsg(sender, "heartbeat ack", tick.leaderBallot().toString());
-//          updateLeader(tick.leaderBallot());
+      setServerState(ServerState.FOLLOWER);
+      updateLeader(tick.leaderBallot());
       log.fastForwardLog(tick.log());
       executeLog();
 
@@ -258,11 +271,23 @@ public class PaxosServer extends Node {
       Timer Handlers
      -----------------------------------------------------------------------*/
 
-  private void onLeaderTimer(LeaderTimer lt) {
+  private void onHeartBeatTimer(HeartBeatTimer ht) {
     if (isLeader()) {
       sendHeartBeat();
-      set(lt, HeartBeatTimer.ELECTION_TICK_MILLIS);
+      set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
+    } else if(!tickLeader()){
+      setServerState(ServerState.ELECTING_LEADER);
+      roundNum++;
+      if(roundNum % servers.length == serverNum){
+        send1A();
+        set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
+      } else{
+        set(ht, HeartBeatTimer.ELECTION_TICK_MILLIS);
+      }
+    }else{
+      set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
     }
+
   }
 
     /* -------------------------------------------------------------------------
@@ -288,6 +313,16 @@ public class PaxosServer extends Node {
     /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
+
+  private void send1A(){
+    debugMsg("send 1a, round", Integer.toString(roundNum));
+    serverBroadcast(new Paxos1A(getBallot(), log));
+  }
+
+  private void send1B(){
+    debugMsg("send 1b to", leaderBallot.toString());
+    sendServer(new Paxos1B(leaderBallot, log), leaderBallot.sender());
+  }
 
   private void send2A(LogEntry e) {
     debugMsg("send 2a, slot:", Integer.toString(e.slot()), e.toString());
@@ -338,14 +373,20 @@ public class PaxosServer extends Node {
     return serverState != ServerState.ELECTING_LEADER;
   }
 
+  private boolean tickLeader(){
+    leaderTick--;
+    return leaderTick > 0;
+  }
+
   private void sendHeartBeat() {
     debugMsg("sending heartbeat");
     serverBroadcast(new HeartBeat(getBallot(), log));
   }
 
   private void updateLeader(Ballot newLeader) {
-//    ticks = REPLICA_LEADER_WAIT;
+    leaderTick = LEADER_TICK_COUNT;
     leaderBallot = newLeader;
+    roundNum = newLeader.roundNum();
   }
 
   private void serverBroadcast(Message m) {
@@ -371,7 +412,7 @@ public class PaxosServer extends Node {
   }
 
   private Ballot getBallot() {
-    return new Ballot(seqNum, this.address());
+    return new Ballot(roundNum, this.address());
   }
     /* -------------------------------------------------------------------------
     Debug

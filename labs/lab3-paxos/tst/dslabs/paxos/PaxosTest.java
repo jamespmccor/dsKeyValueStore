@@ -427,7 +427,7 @@ public class PaxosTest extends BaseJUnitTest {
         }
     }
 
-    @Test(timeout = 5 * 1000)
+    //@Test(timeout = 5 * 1000)
     @PrettyTestName("Debug")
     @Category(RunTests.class)
     @TestPointValue(5)

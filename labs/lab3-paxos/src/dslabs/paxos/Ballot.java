@@ -8,19 +8,19 @@ public class Ballot implements Comparable<Ballot> {
 
     public static final Ballot INVALID_BALLOT = new Ballot(-1, null);
 
-    private int seqNum;
+    private int roundNum;
     private Address sender;
 
-    public Ballot(int seqNum, Address sender) {
-        this.seqNum = seqNum;
+    public Ballot(int roundNum, Address sender) {
+        this.roundNum = roundNum;
         this.sender = sender;
     }
     public Ballot(Ballot b){
-        this(b.seqNum, b.sender);
+        this(b.roundNum, b.sender);
     }
 
     public int compareTo(Ballot b) {
-        return seqNum != b.seqNum ? Integer.compare(seqNum, b.seqNum) :
+        return roundNum != b.roundNum ? Integer.compare(roundNum, b.roundNum) :
                 sender.compareTo(b.sender);
     }
 }

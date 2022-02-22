@@ -13,13 +13,6 @@ final class ClientTimer implements Timer {
 
 @Data
 class HeartBeatTimer implements Timer {
-
-  static final int SERVER_TICK_MILLIS = 50;
-  static final int ELECTION_TICK_MILLIS = SERVER_TICK_MILLIS * 10;
-}
-
-@Data
-final class LeaderTimer implements Timer {
-
-  public static final int SERVER_TICK_MILLIS = 250;
+  static final int SERVER_TICK_MILLIS = 100;
+  static final int ELECTION_TICK_MILLIS = SERVER_TICK_MILLIS * 4;
 }
