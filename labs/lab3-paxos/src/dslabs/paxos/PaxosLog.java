@@ -13,7 +13,7 @@ import lombok.Data;
 @Data
 public class PaxosLog {
 
-  public static final boolean INVARIANT_CHECKS = false;
+  public static final boolean INVARIANT_CHECKS = true;
 
   public static final int LOG_INITIAL = 1;
 
@@ -138,9 +138,9 @@ public class PaxosLog {
       } else {
         if (INVARIANT_CHECKS) {
           // CHOSEN state check
-          if (logEntry.status() == PaxosLogSlotStatus.CHOSEN && e.getValue().status() == PaxosLogSlotStatus.CHOSEN) {
-            assert (logEntry.amoCommand() == null && e.getValue().amoCommand() == null) || logEntry.amoCommand()
-                .equals(e.getValue().amoCommand());
+            if (logEntry.status() == PaxosLogSlotStatus.CHOSEN && e.getValue().status() == PaxosLogSlotStatus.CHOSEN) {
+              assert (logEntry.amoCommand() == null && e.getValue().amoCommand() == null) || logEntry.amoCommand()
+                  .equals(e.getValue().amoCommand());
           }
         }
 

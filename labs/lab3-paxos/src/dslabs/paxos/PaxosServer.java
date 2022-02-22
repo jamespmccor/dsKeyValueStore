@@ -102,7 +102,10 @@ public class PaxosServer extends Node {
    * @see PaxosLogSlotStatus
    */
   public Command command(int logSlotNum) {
-    return log.contains(logSlotNum) ? log.getLog(logSlotNum).amoCommand().command() : null;
+    if(log.contains(logSlotNum)){
+      return log.getLog(logSlotNum).amoCommand() == null ? null : log.getLog(logSlotNum).amoCommand().command();
+    }
+    return null;
   }
 
   /**
@@ -206,6 +209,9 @@ public class PaxosServer extends Node {
    * @param sender
    */
   private void handlePaxos2A(Paxos2A m, Address sender) {
+    if(!isLeader(m.leaderBallot().sender())){
+      return;
+    }
     debugSenderMsg(sender, "recv 2a slot", Integer.toString(m.entry().slot()));
     if (isLeader()) {
       debugMsg("leader self-voted 2a slot", Integer.toString(m.entry().slot()));
@@ -251,9 +257,14 @@ public class PaxosServer extends Node {
   }
 
   private void handleHeartBeat(HeartBeat tick, Address sender) {
-    if (!isLeader() && tick.leaderBallot().compareTo(leaderBallot) >= 0) {
-      debugSenderMsg(sender, "heartbeat ack", tick.leaderBallot().toString());
+    if (tick.leaderBallot().compareTo(leaderBallot) > 0) {
       setServerState(ServerState.FOLLOWER);
+    }
+
+    if(tick.leaderBallot().compareTo(leaderBallot) >= 0
+          && !isLeader()) {
+      debugSenderMsg(sender, "heartbeat ack", tick.leaderBallot().toString());
+
       updateLeader(tick.leaderBallot());
       log.fastForwardLog(tick.log());
       executeLog();
