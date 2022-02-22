@@ -28,6 +28,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -828,10 +829,12 @@ public class PaxosTest extends BaseJUnitTest {
                             newPartition.add(servers.get(j));
                         }
 
+                        System.out.println("repartition " + newPartition.stream().filter(v -> v.toString().startsWith("server")).collect(
+                            Collectors.toList()));
                         runSettings.reconnect().partition(newPartition);
                         Thread.sleep(2000);
                     }
-
+                    System.out.println("heal");
                     runSettings.reconnect();
                     Thread.sleep(2000);
                 }
@@ -1020,10 +1023,13 @@ public class PaxosTest extends BaseJUnitTest {
                       .partition(server(1), server(3), client(2));
         assertGoalReachableFrom(firstAppendSent);
 
+        System.out.println("breaking here");
+
         searchSettings.resetNetwork()
                       .partition(server(2), server(3), client(2));
         assertGoalReachableFrom(firstAppendSent);
 
+        System.out.println("breaking here 2");
         // Checking that linearizability is preserved in both other partitions
         searchSettings.clearGoals().addPrune(CLIENTS_DONE).resetNetwork()
                       .partition(server(1), server(3), client(2));

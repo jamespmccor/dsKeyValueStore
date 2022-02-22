@@ -150,6 +150,14 @@ public class PaxosLog implements Serializable {
     }
   }
 
+  public void garbageCollect(int max) {
+    while (getFirstNonCleared() < max) {
+      assert getLog(getFirstNonCleared()).status() == PaxosLogSlotStatus.CHOSEN;
+      commandToSlot.remove(log.remove(getFirstNonCleared()).amoCommand());
+      min_slot++;
+    }
+  }
+
   public void fillNoOps(Ballot ballot) {
     for (int i : log.keySet()) {
       // we can guarantee something happens in this case

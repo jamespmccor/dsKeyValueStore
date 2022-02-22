@@ -113,6 +113,5 @@ public class VoteTracker implements Serializable {
     }
 
     log.confirmLog(slot);
-    votes.removeAll(slot);
   }
 }

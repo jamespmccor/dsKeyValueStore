@@ -6,6 +6,8 @@ import dslabs.framework.Client;
 import dslabs.framework.Command;
 import dslabs.framework.Node;
 import dslabs.framework.Result;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -90,9 +92,11 @@ public final class PaxosClient extends Node implements Client {
         debugMsg("<-", sender.toString(), String.join(" ", msgs));
     }
 
+    private static final SimpleDateFormat sdf2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+
     private void debugMsg(String... msgs) {
         if (PRINT_DEBUG) {
-            System.out.println(this.address().toString() + ": " + String.join(" ", msgs));
+            System.out.println(sdf2.format(new Date()) + " " + this.address().toString() + ": " + String.join(" ", msgs));
         }
     }
 }
