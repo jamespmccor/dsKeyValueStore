@@ -22,6 +22,7 @@ public final class PaxosClient extends Node implements Client {
     private int seqNum;
     private PaxosRequest request;
     private Result result;
+    private int resends;
 
     /* -------------------------------------------------------------------------
         Construction and Initialization
@@ -44,6 +45,7 @@ public final class PaxosClient extends Node implements Client {
         request = new PaxosRequest(new AMOCommand(seqNum, this.address(), command));
         result = null;
 
+        resends = 0;
         debugMsg("client send", Integer.toString(request.cmd().num()));
         broadcast(request, servers);
         set(new ClientTimer(request), ClientTimer.CLIENT_RETRY_MILLIS);
@@ -79,7 +81,11 @@ public final class PaxosClient extends Node implements Client {
        -----------------------------------------------------------------------*/
     private synchronized void onClientTimer(ClientTimer t) {
         if (request.equals(t.request()) && result == null) {
-            debugMsg("client resend", Integer.toString(t.request().cmd().num()));
+            resends++;
+            if (resends >= 3) {
+                debugMsg("too many resends ", t.request().toString());
+            }
+            debugMsg("client resend", Integer.toString(t.request().cmd().num()),  "#" + resends, t.request().toString());
             broadcast(request, servers);
             set(t, ClientTimer.CLIENT_RETRY_MILLIS);
         }

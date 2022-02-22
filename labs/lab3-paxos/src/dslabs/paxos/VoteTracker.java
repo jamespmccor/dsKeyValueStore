@@ -52,6 +52,7 @@ public class VoteTracker implements Serializable {
     log.updateLog(logEntry.slot(), logEntry);
     return true;
   }
+
   /**
    * Takes in a vote for a log entry. Ignores duplicate commands.
    *
@@ -73,7 +74,7 @@ public class VoteTracker implements Serializable {
           return false;
         } else if (logEntry.ballot().compareTo(existingLogEntry.ballot()) == 0) {
           if (INVARIANT_CHECK) {
-            assert logEntry.amoCommand().equals(existingLogEntry.amoCommand());
+            assert logEntry.amoCommand() == null && existingLogEntry.amoCommand() == null || logEntry.amoCommand().equals(existingLogEntry.amoCommand());
           }
           // add ballot, return t/f depending on whether already there
           boolean accepted = votes.put(logEntry.slot(), voter);

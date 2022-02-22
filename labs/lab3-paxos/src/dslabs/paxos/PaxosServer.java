@@ -99,7 +99,7 @@ public class PaxosServer extends Node {
    * @see PaxosLogSlotStatus
    */
   public Command command(int logSlotNum) {
-    return log.contains(logSlotNum) ? log.getLog(logSlotNum).amoCommand().command() : null;
+    return log.contains(logSlotNum) && log.getLog(logSlotNum).amoCommand() != null ? log.getLog(logSlotNum).amoCommand().command() : null;
   }
 
   /**
@@ -163,7 +163,7 @@ public class PaxosServer extends Node {
     } else if (m.ballot().compareTo(leaderBallot) == 0) {
       // should only happen on the leader.
 //      if (leaderBallot.leader().equals(this.address())) {
-        accept1B(leaderBallot);
+      accept1B(leaderBallot);
 //      }
     } else {
       debugSenderMsg(sender, "reject 1a, ballot", m.ballot().toString(), "sending", leaderBallot.toString());
@@ -265,7 +265,7 @@ public class PaxosServer extends Node {
       debugMsg("ignored vote", m.entry().toString());
     }
     executeLog();
-    debugMsg("2b execution state: ", log.getLog(log.indexOfCommand(m.entry().amoCommand())).toString());
+    debugMsg("2b execution state: ", log.indexOfCommand(m.entry().amoCommand()) >= 0 ? log.getLog(log.indexOfCommand(m.entry().amoCommand())).toString() : "null");
   }
 
   private void handleHeartBeat(HeartBeat tick, Address sender) {
@@ -294,8 +294,7 @@ public class PaxosServer extends Node {
     if (tick > 0) {
       set(ht, HeartBeatTimer.SERVER_TICK_MILLIS);
       return;
-    }
-    else if (isLeader()) {
+    } else if (isLeader()) {
       fireLeader();
     } else if (isFollower()) {
       fireFollower();
@@ -405,8 +404,8 @@ public class PaxosServer extends Node {
    */
   private void rebroadcastAcceptedLogEntries(PaxosLog l) {
     for (LogEntry e : l.log().values()) {
-      if (e.status() == PaxosLogSlotStatus.ACCEPTED && log.getLog(e.slot()).amoCommand().equals(e.amoCommand())) {
-        send2B(e);
+      if (e.status() == PaxosLogSlotStatus.ACCEPTED && log.getLog(e.slot()) != null) {
+        send2B(log.getLog(e.slot()));
       }
     }
   }

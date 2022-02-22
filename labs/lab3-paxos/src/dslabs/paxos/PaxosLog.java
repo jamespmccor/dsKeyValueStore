@@ -159,12 +159,12 @@ public class PaxosLog implements Serializable {
   }
 
   public void fillNoOps(Ballot ballot) {
-    for (int i : log.keySet()) {
+    for (int i = min_slot; i < max_slot; i++) {
       // we can guarantee something happens in this case
       LogEntry logEntry = log.get(i);
 
       if (logEntry == null) {
-        updateLog(i, new LogEntry(i, ballot, null, PaxosLogSlotStatus.CHOSEN));
+        updateLog(i, new LogEntry(i, ballot, null, PaxosLogSlotStatus.ACCEPTED));
       }
     }
   }
