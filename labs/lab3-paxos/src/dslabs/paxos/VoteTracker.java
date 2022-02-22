@@ -63,12 +63,12 @@ public class VoteTracker {
       case CLEARED:
       case CHOSEN:
         // slot already used;
-        //System.out.println("\tslot chosen " + existingLogEntry.toString());
+        System.out.println("\tslot chosen " + existingLogEntry.toString());
         return false;
       case ACCEPTED:
         if (logEntry.ballot().roundNum() < existingLogEntry.ballot().roundNum()) {
           // reject old ballots
-          //System.out.println("\tballot old");
+          System.out.println("\tballot old");
           return false;
         } else if (logEntry.ballot().roundNum() == existingLogEntry.ballot().roundNum()) {
           if (INVARIANT_CHECK) {

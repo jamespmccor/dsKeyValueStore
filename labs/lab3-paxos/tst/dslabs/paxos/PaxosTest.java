@@ -828,6 +828,7 @@ public class PaxosTest extends BaseJUnitTest {
                             newPartition.add(servers.get(j));
                         }
 
+                        System.out.println("*********"+newPartition +"******************************");
                         runSettings.reconnect().partition(newPartition);
                         Thread.sleep(2000);
                     }
