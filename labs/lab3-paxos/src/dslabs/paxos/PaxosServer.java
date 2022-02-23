@@ -150,7 +150,7 @@ public class PaxosServer extends Node {
           send2A(log.getLog(log.indexOfCommand(m.cmd())));
         }
       } else {
-        LogEntry logEntry = voteTracker.createLogEntry(getBallot(), m.cmd());
+        LogEntry logEntry = voteTracker.createLogEntry(leaderBallot, m.cmd());
         voteTracker.addLogEntry(logEntry);
         send2A(logEntry);
       }
@@ -253,7 +253,7 @@ public class PaxosServer extends Node {
       executeLog();
 
       // rebroadcast accepted values so leader can add them to the vote.
-      for (LogEntry e : tick.log().getLog().values()) {
+      for (LogEntry e : log.getLog().values()) {
         if (e.status() == PaxosLogSlotStatus.ACCEPTED) {
           send2B(e);
         }
@@ -331,7 +331,7 @@ public class PaxosServer extends Node {
   private void fillNoOp(){
     for(int i = log.min_slot_unexecuted(); i <= log.max_slot(); i++) {
       if (log.getLogStatus(i) == PaxosLogSlotStatus.EMPTY) {
-        voteTracker.addLogEntry(new LogEntry(i, getBallot(), null, PaxosLogSlotStatus.ACCEPTED));
+        voteTracker.addLogEntry(new LogEntry(i, leaderBallot, null, PaxosLogSlotStatus.ACCEPTED));
       }
     }
   }
@@ -359,7 +359,7 @@ public class PaxosServer extends Node {
 
   private void sendHeartBeat() {
     debugMsg("sending heartbeat");
-    serverBroadcast(new HeartBeat(getBallot(), log));
+    serverBroadcast(new HeartBeat(leaderBallot, log));
   }
 
   private void updateLeader(Ballot newLeader) {
@@ -378,12 +378,12 @@ public class PaxosServer extends Node {
   }
 
   private void serverBroadcast(Message m) {
+    sendServer(m, this.address());
     for (Address a : servers) {
       if (!a.equals(this.address())) {
         send(m, a);
       }
     }
-    sendServer(m, this.address());
   }
 
   private void sendServer(Message m, Address dest) {

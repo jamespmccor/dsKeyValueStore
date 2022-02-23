@@ -6,11 +6,13 @@ import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
 import lombok.Data;
 
+import java.io.Serializable;
+
 /**
  * Proposals is responsible for tracking proposed log entries. It gathers ballots from servers and if a
  */
 @Data
-public class VoteTracker {
+public class VoteTracker implements Serializable {
 
   public static final boolean INVARIANT_CHECK = DebugUtils.VoteTracker_INVARIANTS;
 
@@ -73,10 +75,10 @@ public class VoteTracker {
           //System.out.println("\tballot old");
           return false;
         } else if (logEntry.ballot().roundNum() == existingLogEntry.ballot().roundNum()) {
-          if (INVARIANT_CHECK) {
-            assert logEntry.amoCommand() == null && existingLogEntry.amoCommand() == null || logEntry.amoCommand().equals(existingLogEntry.amoCommand()) :
-              "\texistingLogEntry: "+ existingLogEntry +"\n\tnewLogEntry: " + logEntry;
-          }
+          assert !INVARIANT_CHECK
+                  || logEntry.amoCommand() == null && existingLogEntry.amoCommand() == null
+                  || logEntry.amoCommand().equals(existingLogEntry.amoCommand()) :
+            "\texistingLogEntry: "+ existingLogEntry +"\n\tnewLogEntry: " + logEntry;
           // add ballot, return t/f depending on whether already there
           boolean accepted = votes.put(logEntry.slot(), logEntry.ballot().sender());
 

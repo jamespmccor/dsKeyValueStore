@@ -1,7 +1,12 @@
 package dslabs.paxos;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import dslabs.atmostonce.AMOCommand;
+
+import java.io.Serializable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import lombok.Data;
 
@@ -11,14 +16,14 @@ import lombok.Data;
  * LOG DOES NOT HANDLE QUORUM WILL RETURN ALREADY EXECUTED == TRUE ALWAYS FOR AMOCOMMAND == NULL
  */
 @Data
-public class PaxosLog {
+public class PaxosLog implements Serializable {
 
   public static final boolean INVARIANT_CHECKS = DebugUtils.PaxosLog_INVARIANTS;
 
   public static final int LOG_INITIAL = 1;
 
   private final Map<Integer, LogEntry> log;
-  private final Map<AMOCommand, Integer> commandToSlot;
+  private final BiMap<AMOCommand, Integer> commandToSlot;
 
   private int min_slot;
   private int max_slot;
@@ -27,7 +32,7 @@ public class PaxosLog {
 
   public PaxosLog() {
     log = new HashMap<>();
-    commandToSlot = new HashMap<>();
+    commandToSlot = HashBiMap.create();
 
     min_slot = LOG_INITIAL;
     max_slot = LOG_INITIAL - 1;
@@ -67,14 +72,13 @@ public class PaxosLog {
     }
 
     if (existingLog != null) {
-      commandToSlot.remove(logEntry.amoCommand());
+      commandToSlot.remove(existingLog.amoCommand());
     }
-
     if (logEntry.amoCommand() != null) {
       commandToSlot.put(logEntry.amoCommand(), slot);
     }
     log.put(slot, logEntry);
-
+    assert new HashSet<>(commandToSlot.values()).size() == commandToSlot().keySet().size();
     max_slot = Math.max(max_slot, slot);
   }
 
@@ -146,7 +150,7 @@ public class PaxosLog {
 
         // CHOSEN/ACCEPTED state
         if (logEntry.status() == PaxosLogSlotStatus.ACCEPTED && (
-            e.getValue().ballot().roundNum() > logEntry.ballot().roundNum()
+            e.getValue().ballot().compareTo(logEntry.ballot()) > 0
                 || e.getValue().status() == PaxosLogSlotStatus.CHOSEN)) {
           updateLog(e.getKey(), e.getValue(), true);
         }

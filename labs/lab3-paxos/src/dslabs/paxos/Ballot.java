@@ -3,13 +3,15 @@ package dslabs.paxos;
 import dslabs.framework.Address;
 import lombok.Data;
 
+import java.io.Serializable;
+
 @Data
-public class Ballot implements Comparable<Ballot> {
+public class Ballot implements Comparable<Ballot>{
 
     public static final Ballot INVALID_BALLOT = new Ballot(-1, null);
 
-    private int roundNum;
-    private Address sender;
+    private final int roundNum;
+    private final Address sender;
 
     public Ballot(int roundNum, Address sender) {
         this.roundNum = roundNum;

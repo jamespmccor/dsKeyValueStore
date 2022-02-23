@@ -4,9 +4,11 @@ import dslabs.atmostonce.AMOCommand;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.io.Serializable;
+
 @AllArgsConstructor
 @Data
-public class LogEntry {
+public class LogEntry implements Serializable {
 
     private final int slot;
     private final Ballot ballot;
