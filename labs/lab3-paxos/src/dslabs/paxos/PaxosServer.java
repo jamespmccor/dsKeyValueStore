@@ -449,7 +449,7 @@ public class PaxosServer extends Node {
       }
     } else {
       setServerState(ServerState.FOLLOWER);
-      debugMsg("clearing vot es", votes.toString());
+      debugMsg("clearing votes", votes.toString());
       votes.clear();
     }
     leaderBallot = b;
