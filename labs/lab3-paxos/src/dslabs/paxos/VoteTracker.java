@@ -68,11 +68,12 @@ public class VoteTracker {
         //System.out.println("\tslot chosen " + existingLogEntry.toString());
         return false;
       case ACCEPTED:
-        if (logEntry.ballot().roundNum() < existingLogEntry.ballot().roundNum()) {
+        if (logEntry.ballot().compareTo(existingLogEntry.ballot()) < 0) {
           // reject old ballots
           //System.out.println("\tballot old");
+          votes.put(logEntry.slot(), logEntry.ballot().sender());
           return false;
-        } else if (logEntry.ballot().roundNum() == existingLogEntry.ballot().roundNum()) {
+        } else if (logEntry.ballot().compareTo(existingLogEntry.ballot()) == 0) {
           if (INVARIANT_CHECK) {
             assert logEntry.amoCommand() == null && existingLogEntry.amoCommand() == null || logEntry.amoCommand().equals(existingLogEntry.amoCommand()) :
               "\texistingLogEntry: "+ existingLogEntry +"\n\tnewLogEntry: " + logEntry;
@@ -86,7 +87,7 @@ public class VoteTracker {
           }
           return accepted;
         } else {
-          // logEntry.ballot().seqNum() > existingLogEntry.ballot().seqNum()
+          // logEntry.ballot().compareTo(existingLogEntry.ballot()) > 0
           // THIS CASE IS A REMOVE ALL AND THEN GOES TO EMPTY
           votes.removeAll(logEntry.slot());
           log.updateLog(logEntry.slot(), logEntry);
@@ -114,6 +115,6 @@ public class VoteTracker {
     }
 
     log.confirmLog(slot);
-    votes.removeAll(slot);
+//    votes.removeAll(slot);
   }
 }

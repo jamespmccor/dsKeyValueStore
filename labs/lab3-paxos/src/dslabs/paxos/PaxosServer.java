@@ -172,9 +172,10 @@ public class PaxosServer extends Node {
         leaderVotes.add(sender);
         log.fastForwardLog(m.log());
         if(leaderVotes.size() > servers.length / 2){
-          fillNoOp();
           setServerState(ServerState.LEADER);
-          repropose();
+          log.fillNoOps(leaderBallot);
+          rebroadcastAcceptedLogEntries(log);
+//          repropose();
           sendHeartBeat();
         }
     }
@@ -226,7 +227,7 @@ public class PaxosServer extends Node {
    */
   private void handlePaxos2B(Paxos2B m, Address sender) {
     debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
-    if (!isLeader()) {
+    if (!isLeader() || serverState == ServerState.ELECTING_LEADER) {
       debugSenderMsg(sender, "ignored b/c not leader");
       return;
     }
@@ -253,10 +254,14 @@ public class PaxosServer extends Node {
       executeLog();
 
       // rebroadcast accepted values so leader can add them to the vote.
-      for (LogEntry e : tick.log().getLog().values()) {
-        if (e.status() == PaxosLogSlotStatus.ACCEPTED) {
-          send2B(e);
-        }
+      rebroadcastAcceptedLogEntries(log);
+    }
+  }
+
+  private void rebroadcastAcceptedLogEntries(PaxosLog l) {
+    for (LogEntry e : l.log().values()) {
+      if (e.status() == PaxosLogSlotStatus.ACCEPTED && log.getLog(e.slot()) != null) {
+        send2B(log.getLog(e.slot()));
       }
     }
   }
@@ -328,13 +333,13 @@ public class PaxosServer extends Node {
     }
   }
 
-  private void fillNoOp(){
-    for(int i = log.min_slot_unexecuted(); i <= log.max_slot(); i++) {
-      if (log.getLogStatus(i) == PaxosLogSlotStatus.EMPTY) {
-        voteTracker.addLogEntry(new LogEntry(i, getBallot(), null, PaxosLogSlotStatus.ACCEPTED));
-      }
-    }
-  }
+//  private void fillNoOp(){
+//    for(int i = log.min_slot_unexecuted(); i <= log.max_slot(); i++) {
+//      if (log.getLogStatus(i) == PaxosLogSlotStatus.EMPTY) {
+//        voteTracker.addLogEntry(new LogEntry(i, getBallot(), null, PaxosLogSlotStatus.ACCEPTED));
+//      }
+//    }
+//  }
 
   private boolean isLeader() {
     return serverState == ServerState.LEADER;

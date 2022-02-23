@@ -61,10 +61,11 @@ public class PaxosLog {
     if (INVARIANT_CHECKS && !fastForward) {
       if (existingLog != null) {
         assert
-            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().roundNum() > existingLog.ballot().roundNum() :
+            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().compareTo(existingLog.ballot()) > 0 :
             "can only go in order of status || can only be overwritten if in a higher round failed: " + logEntry + "\n\n" + this;
       }
     }
+
 
     if (existingLog != null) {
       commandToSlot.remove(logEntry.amoCommand());
@@ -92,6 +93,18 @@ public class PaxosLog {
     max_slot = Math.max(max_slot, slot);
     //System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
   }
+
+  public void fillNoOps(Ballot ballot) {
+    for (int i = min_slot; i < max_slot; i++) {
+      // we can guarantee something happens in this case
+      LogEntry logEntry = log.get(i);
+
+      if (logEntry == null) {
+        updateLog(i, new LogEntry(i, ballot, null, PaxosLogSlotStatus.ACCEPTED));
+      }
+    }
+  }
+
 
   /**
    * T/F if log currently exists in ACCEPTED/CHOSEN state (ie non-null);
@@ -138,15 +151,15 @@ public class PaxosLog {
       } else {
         if (INVARIANT_CHECKS) {
           // CHOSEN state check
-            if (logEntry.status() == PaxosLogSlotStatus.CHOSEN && e.getValue().status() == PaxosLogSlotStatus.CHOSEN) {
-              assert (logEntry.amoCommand() == null && e.getValue().amoCommand() == null) || logEntry.amoCommand()
-                  .equals(e.getValue().amoCommand());
+          if (logEntry.status() == PaxosLogSlotStatus.CHOSEN && e.getValue().status() == PaxosLogSlotStatus.CHOSEN) {
+            assert (logEntry.amoCommand() == null && e.getValue().amoCommand() == null) || logEntry.amoCommand()
+                .equals(e.getValue().amoCommand());
           }
         }
 
         // CHOSEN/ACCEPTED state
         if (logEntry.status() == PaxosLogSlotStatus.ACCEPTED && (
-            e.getValue().ballot().roundNum() > logEntry.ballot().roundNum()
+            e.getValue().ballot().compareTo(logEntry.ballot()) > 0
                 || e.getValue().status() == PaxosLogSlotStatus.CHOSEN)) {
           updateLog(e.getKey(), e.getValue(), true);
         }
