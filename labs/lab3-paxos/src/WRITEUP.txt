@@ -1,7 +1,7 @@
 Lab 3 Writeup
 
 Partner 1 Name, NetID: Jevin Gu, jevin@cs
-Partner 2 Name, NetID: James McCormick
+Partner 2 Name, NetID: James McCormick, jpmccor
 
 Brief description of design:
 - PaxosClient copied from lab 2
@@ -14,11 +14,11 @@ Brief description of design:
     needing to rearrange the 1a/1b messages.
 - VoteTracker abstracts out the MultiPaxos log election process for the leader
   - Has invariant / debugging toggles so we can debug it separately.
-  - Only sets a record chosen when a majority of servers
+  - Only sets a record chosen when a majority of servers have voted for it
   - Garbage collects voter state
   - To enforce stronger logic/catch bugs in our PaxosServer we separate out the process of adding
     a new entry to the log from voting for existing entries in the log
-  - Ensures we wipe votes every time a new LogEntry state
+  - Ensures we wipe votes every time the LogEntry of a slot changes
 - PaxosServer handles general server state such as leader election, garbage collection, and modifying
   the votes/log.
   - Again we use invariants/debugging handlers to easily debug.
@@ -56,6 +56,7 @@ Brief description of design:
     the leader clears itself up to the global minimum and then that is propagated out to the followers
 Hours spent on the lab: 
  - Pair Programming: 36.5
- - Jevin Additional: 30
+ - Jevin: 30
+ - James: 25
 
 Any feedback about the lab:

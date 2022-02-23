@@ -2,7 +2,6 @@ package dslabs.paxos;
 
 import dslabs.atmostonce.AMOApplication;
 import dslabs.framework.*;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -21,7 +20,7 @@ public class PaxosServer extends Node {
 
   public static final int REPLICA_LEADER_WAIT = 1;
   public static final int REPLICA_ELECTING_LEADER_WAIT = 1;
-  public static final int REPLICA_FOLLOWER_WAIT = 5;
+  public static final int REPLICA_FOLLOWER_WAIT = 4;
   public static final int INITIAL_BALLOT_NUMBER = -1;
 
   /**
@@ -34,6 +33,7 @@ public class PaxosServer extends Node {
   private final PaxosLog log;
 
   private ServerState serverState;
+  private HashMap<Address, Integer> minUnexecutedVals;
   private Set<Address> votes;
   private Ballot leaderBallot;
   private int tick = 0;
@@ -52,6 +52,8 @@ public class PaxosServer extends Node {
     serverState = ServerState.ELECTING_LEADER;
     votes = new HashSet<>();
     leaderBallot = new Ballot(INITIAL_BALLOT_NUMBER, servers[0]);
+
+    minUnexecutedVals = new HashMap<>();
   }
 
   @Override
@@ -144,8 +146,8 @@ public class PaxosServer extends Node {
       if (app.execute(m.cmd()) != null) {
         send(new PaxosReply(app.execute(m.cmd())), sender);
       }
-    } else if (log.indexOfCommand(m.cmd()) > 0) {
-      send2A(log.getLog(log.indexOfCommand(m.cmd())));
+    } else if (log.commandExistsInLog(m.cmd())) {
+      send2A(log.getLog(log.indexesOfCommand(m.cmd()).iterator().next()));
     } else {
       LogEntry logEntry = voteTracker.createLogEntry(getBallot(), m.cmd());
       voteTracker.addLogEntry(logEntry);
@@ -220,8 +222,8 @@ public class PaxosServer extends Node {
     if (isElectingLeader() || !m.leaderBallot().equals(leaderBallot)) {
       return;
     }
-    debugSenderMsg(sender, "recv 2a slot", Integer.toString(m.entry().slot()));
-    if (!isLeader(sender)) {
+//    debugSenderMsg(sender, "recv 2a slot", Integer.toString(m.entry().slot()));
+    if (!isLeader(sender) || log.getLogStatus(m.entry().slot()) == PaxosLogSlotStatus.CLEARED) {
 //      debugMsg("reject sender is not leader", Integer.toString(m.entry().slot()));
       return;
     }
@@ -258,7 +260,7 @@ public class PaxosServer extends Node {
       return;
     }
 //    debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
-    if (!isLeader()) {
+    if (!isLeader() || log.getLogStatus(m.entry().slot()) == PaxosLogSlotStatus.CLEARED) {
 //      debugSenderMsg(sender, "ignored b/c not leader");
       return;
     }
@@ -284,7 +286,21 @@ public class PaxosServer extends Node {
       executeLog();
       rebroadcastAcceptedLogEntries(tick.log());
 
+
+      if (log.min_slot() < tick.log().min_slot()) {
+        log.garbageCollect(tick.log().min_slot());
+      }
+
+      sendHeartbeatResponse();
     }
+  }
+
+  private void handleHeartBeatResponse(HeartBeatResponse tick, Address sender) {
+    if (isFollower()) {
+      return;
+    }
+    minUnexecutedVals.put(sender, Math.max(minUnexecutedVals.getOrDefault(sender, tick.garbageSlot()), tick.garbageSlot()));
+    debugMsg("hbr minGC:", minUnexecutedVals.toString());
   }
 
   /* -------------------------------------------------------------------------
@@ -388,6 +404,30 @@ public class PaxosServer extends Node {
   private void send2B(LogEntry logEntry) {
 //    debugMsg("send 2b, slot:", Integer.toString(logEntry.slot()), logEntry.toString());
     sendServer(new Paxos2B(new LogEntry(logEntry, getBallot())), leaderBallot.leader());
+  }
+
+
+  private void sendHeartBeat() {
+    assert isLeader() && leaderBallot.leader().equals(this.address());
+
+//    System.out.println("{" + this.address() + ", " + log.min_slot_unexecuted() + "} " + minUnexecutedVals);
+    if (minUnexecutedVals.size() == servers.length - 1 && servers.length > 1) {
+      int globalMin = minUnexecutedVals.values().stream().reduce(Math::min).orElseThrow();
+      globalMin = Math.min(globalMin, log.min_slot_unexecuted());
+//      System.out.println("gc to " + globalMin);
+      if (log.min_slot() < globalMin) {
+        log.garbageCollect(globalMin - 1);
+      }
+    }
+    minUnexecutedVals.clear();
+
+    debugMsg("sending heartbeat");
+    serverBroadcast(new HeartBeat(getBallot(), log));
+  }
+
+  private void sendHeartbeatResponse() {
+//    System.out.println(this.address() + " sending hbr");
+    sendServer(new HeartBeatResponse(log.min_slot_unexecuted()), leaderBallot.leader());
   }
 
   private void serverBroadcast(Message m) {
@@ -500,13 +540,6 @@ public class PaxosServer extends Node {
     return sender.equals(leaderBallot.leader());
   }
 
-  private void sendHeartBeat() {
-    assert isLeader() && leaderBallot.leader().equals(this.address());
-
-    debugMsg("sending heartbeat");
-    serverBroadcast(new HeartBeat(getBallot(), log));
-  }
-
   private void setServerState(ServerState state) {
     assert state != ServerState.LEADER || serverState != ServerState.FOLLOWER;
     boolean changeServerState = state != serverState;
@@ -514,6 +547,9 @@ public class PaxosServer extends Node {
     serverState = state;
     if (changeServerState) {
       resetTimers();
+    }
+    if (isFollower()) {
+      minUnexecutedVals.clear();
     }
   }
 

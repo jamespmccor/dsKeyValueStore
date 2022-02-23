@@ -1,7 +1,10 @@
 package dslabs.paxos;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import dslabs.atmostonce.AMOCommand;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Data;
@@ -19,7 +22,7 @@ public class PaxosLog implements Serializable {
   public static final int LOG_INITIAL = 1;
 
   private final Map<Integer, LogEntry> log;
-  private final Map<AMOCommand, Integer> commandToSlot;
+  private final Multimap<AMOCommand, Integer> commandToSlot;
 
   private int min_slot;
   private int max_slot;
@@ -28,7 +31,7 @@ public class PaxosLog implements Serializable {
 
   public PaxosLog() {
     log = new HashMap<>();
-    commandToSlot = new HashMap<>();
+    commandToSlot = HashMultimap.create();
 
     min_slot = LOG_INITIAL;
     max_slot = LOG_INITIAL - 1;
@@ -52,7 +55,6 @@ public class PaxosLog implements Serializable {
   /**
    * @param slot
    * @param logEntry
-   * @param allowChosen allow CHOSEN states to be directly put into log (skipping accepted)
    */
   private void updateLog(int slot, LogEntry logEntry, boolean fastForward) {
     LogEntry existingLog = log.get(slot);
@@ -66,8 +68,9 @@ public class PaxosLog implements Serializable {
       }
     }
 
-    if (existingLog != null) {
-      commandToSlot.remove(logEntry.amoCommand());
+    if (existingLog != null && existingLog.amoCommand() != null) {
+      // we want to remove the command at the slot actually
+      commandToSlot.remove(existingLog.amoCommand(), slot);
     }
 
     if (logEntry.amoCommand() != null) {
@@ -150,14 +153,19 @@ public class PaxosLog implements Serializable {
     }
   }
 
-  public void garbageCollect(int max) {
-    while (getFirstNonCleared() < max) {
-      assert getLog(getFirstNonCleared()).status() == PaxosLogSlotStatus.CHOSEN;
-      commandToSlot.remove(log.remove(getFirstNonCleared()).amoCommand());
+  public void garbageCollect(int to) {
+    while (min_slot < to) {
+      if (INVARIANT_CHECKS) {
+        assert log.get(min_slot).status() == PaxosLogSlotStatus.CHOSEN;
+      }
+
+      LogEntry removed = log.remove(min_slot);
+      if (removed.amoCommand() != null) {
+        commandToSlot.remove(removed.amoCommand(), min_slot);
+      }
       min_slot++;
     }
   }
-
   public void fillNoOps(Ballot ballot) {
     for (int i = min_slot; i < max_slot; i++) {
       // we can guarantee something happens in this case
@@ -186,12 +194,11 @@ public class PaxosLog implements Serializable {
    * @return true if null or in log
    */
   public boolean commandExistsInLog(AMOCommand amoCommand) {
-    return indexOfCommand(amoCommand) != -1;
+    return commandToSlot.containsKey(amoCommand);
   }
 
-  public int indexOfCommand(AMOCommand command) {
-    Integer index = commandToSlot.get(command);
-    return index == null ? -1 : index;
+  public Collection<Integer> indexesOfCommand(AMOCommand command) {
+    return commandToSlot.get(command);
   }
 
     /* -------------------------------------------------------------------------
