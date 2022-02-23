@@ -22,6 +22,6 @@ public class Ballot implements Comparable<Ballot>, Serializable {
 
     public int compareTo(Ballot b) {
         return seqNum != b.seqNum ? Integer.compare(seqNum, b.seqNum) :
-                leader.compareTo(b.leader);
+                -leader.compareTo(b.leader);
     }
 }

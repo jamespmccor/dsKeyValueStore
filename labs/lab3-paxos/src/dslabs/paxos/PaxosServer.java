@@ -9,6 +9,8 @@ import lombok.ToString;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+@ToString(callSuper = true)
+@EqualsAndHashCode(callSuper = true)
 public class PaxosServer extends Node {
 
   public enum ServerState {
@@ -162,9 +164,7 @@ public class PaxosServer extends Node {
       accept1B(leaderBallot);
     } else if (m.ballot().compareTo(leaderBallot) == 0) {
       // should only happen on the leader.
-//      if (leaderBallot.leader().equals(this.address())) {
       accept1B(leaderBallot);
-//      }
     } else {
       debugSenderMsg(sender, "reject 1a, ballot", m.ballot().toString(), "sending", leaderBallot.toString());
       reject1B(sender, leaderBallot);
@@ -172,12 +172,13 @@ public class PaxosServer extends Node {
   }
 
   private void handlePaxos1B(Paxos1B m, Address sender) {
+    debugSenderMsg(sender, "recv ballot", m.toString(), "votes", votes.toString());
     if (m.accepted()) {
       if (m.ballot().compareTo(leaderBallot) > 0) {
         assert false;
       } else if (m.ballot().compareTo(leaderBallot) == 0) {
         if (isElectingLeader()) {
-          debugSenderMsg(sender, "acc 1b, ballot", m.ballot().toString());
+          debugSenderMsg(sender, "acc 1b, ballot", m.ballot().toString(), "votes", votes.toString());
           log.fastForwardLog(m.log());
           if (voteLeaderElection(sender, m.ballot())) {
             setLeader(leaderBallot);
@@ -186,6 +187,7 @@ public class PaxosServer extends Node {
             rebroadcastAcceptedLogEntries(log);
             sendHeartBeat();
           }
+          debugSenderMsg(sender, "recv ballot post", m.toString(), "votes", votes.toString());
         }
       } else {
         debugSenderMsg(sender, "reject 1b, ballot", m.ballot().toString(), "sending", leaderBallot.toString());
@@ -255,17 +257,17 @@ public class PaxosServer extends Node {
     if (isElectingLeader()) {
       return;
     }
-    debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
+//    debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
     if (!isLeader()) {
-      debugSenderMsg(sender, "ignored b/c not leader");
+//      debugSenderMsg(sender, "ignored b/c not leader");
       return;
     }
 
     if (!voteTracker.vote(sender, m.entry())) {
-      debugMsg("ignored vote", m.entry().toString());
+//      debugMsg("ignored vote", m.entry().toString());
     }
     executeLog();
-    debugMsg("2b execution state: ", log.indexOfCommand(m.entry().amoCommand()) >= 0 ? log.getLog(log.indexOfCommand(m.entry().amoCommand())).toString() : "null");
+//    debugMsg("2b execution state: ", log.getLog(log.indexOfCommand(m.entry().amoCommand())).toString());
   }
 
   private void handleHeartBeat(HeartBeat tick, Address sender) {
@@ -368,7 +370,7 @@ public class PaxosServer extends Node {
   }
 
   private void reject1B(Address sender, Ballot b) {
-    send1B(sender, false, b);
+//    send1B(sender, false, b);
   }
 
   private void send1B(Address sender, boolean accept, Ballot ballot) {
@@ -447,20 +449,24 @@ public class PaxosServer extends Node {
       }
     } else {
       setServerState(ServerState.FOLLOWER);
+      debugMsg("clearing vot es", votes.toString());
+      votes.clear();
     }
-    votes.clear();
     leaderBallot = b;
   }
 
   private void setElectingLeader(Ballot b) {
     assert b.leader().equals(address());
     setServerState(ServerState.ELECTING_LEADER);
+    debugMsg("clearing votes", votes.toString());
     votes.clear();
     leaderBallot = b;
   }
 
   // returns true if vote succeeded
   private boolean voteLeaderElection(Address sender, Ballot b) {
+    debugMsg("election pre", b.toString(), leaderBallot.toString(), "(self leader):", votes.toString());
+
     assert b.equals(leaderBallot);
     assert leaderBallot.leader().equals(this.address());
 
