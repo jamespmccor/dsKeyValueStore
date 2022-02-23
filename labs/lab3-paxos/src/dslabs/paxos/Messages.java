@@ -9,7 +9,6 @@ import java.util.Map;
 @Data
 class Paxos1A implements Message {
     private final Ballot ballot;
-//    private final Map<Integer, LogEntry> log;
 }
 
 

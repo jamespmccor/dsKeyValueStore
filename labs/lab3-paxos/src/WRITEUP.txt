@@ -1,12 +1,61 @@
 Lab 3 Writeup
 
-Partner 1 Jevin Gu, jevin:
-Partner 2 Name, NetID: 
+Partner 1 Name, NetID: Jevin Gu, jevin@cs
+Partner 2 Name, NetID: James McCormick
 
 Brief description of design:
+- PaxosClient copied from lab 2
+- PaxosLog is abstracted out handle the MultiPaxos log state (2a/2b)
+  - Separate toggles for invariants wrt counters / log entries.
+  - Throws errors in states which the log could handle but are usually a symptom of bad logic in
+    the PaxosServer
+  - Enforces the idea that each LogEntry must have a larger ballot or advance the LogState (EMPTY -> ACCEPTED -> CHOSEN -> CLEARED)
+  - Is easily sent across the network allowing us to change the log structure over time without
+    needing to rearrange the 1a/1b messages.
+- VoteTracker abstracts out the MultiPaxos log election process for the leader
+  - Has invariant / debugging toggles so we can debug it separately.
+  - Only sets a record chosen when a majority of servers
+  - Garbage collects voter state
+  - To enforce stronger logic/catch bugs in our PaxosServer we separate out the process of adding
+    a new entry to the log from voting for existing entries in the log
+  - Ensures we wipe votes every time a new LogEntry state
+- PaxosServer handles general server state such as leader election, garbage collection, and modifying
+  the votes/log.
+  - Again we use invariants/debugging handlers to easily debug.
+  - Our leader election (1A/1B) works as follows:
+      - 1A messages send out ballots
+      - Affirmative 1B messages are sent out to vote for a leader
+        - We previously sent out negative 1B messages to tell a server it is not up to date but
+          this was too slow.
+        - A follower can only vote for nodes that are equal or larger than its current leader.
+        - We merge logs to the most recent state on every 1B received at a server so we don't need to
+          have a dedicated merge on leader election.
+      - Swap to a new round upon election
+      - Stay within a round while electing the leader
+      - A leader/electing leader becomes a follower upon receiving a greater ballot from 1a
+      - Upon leader election (an ELECTING_LEADER receives a majority of the ballot in a round)
+        the leader fast-forwards/executes the log, fills the holes with no-ops
+      - If no heartbeat message is received from the leader within the follower wait period, the
+        follower goes back to ELECTING_LEADER and sends out its own ballot of the same round.
+  - Upon leader election commands can be run against the server (2A/2B):
+      - For simplicity followers only accept messages with the same leader election ballot. This
+        means we don't have to handle changes in leader during 2A/2B.
+      - A valid message from the current round leader -> follower will be added to the log. Followers
+        can only leave logs in the ACCEPT state.
+      - Followers will send a 2B message back to the leader which will then move the log state to chosen
+        when a majority is reached. It will also execute the log as far as it can.
+      - Votes are cleared when a node newly becomes ELECTING_LEADER / FOLLOWER and otherwise kept.
+  - We have a single timer that is reset to the tick units anytime a state is maintained (ex. follower)
+    or changed.
+      - Fires a heartbeat if node is leader
+      - Fires a 1A message if it's trying to elect itself
+      - Doesn't fire as a follower UNLESS the leader has not sent a message in the tick duration.
 
-
+      Keeping a single timer we reduce the need to manage state and weird offsets.
+  - Garbage collection is done by sending a HeartBeatResponse which contains the min_uncleared_slot
+    the leader clears itself up to the global minimum and then that is propagated out to the followers
 Hours spent on the lab: 
-
+ - Pair Programming: 36.5
+ - Jevin Additional: 30
 
 Any feedback about the lab:
