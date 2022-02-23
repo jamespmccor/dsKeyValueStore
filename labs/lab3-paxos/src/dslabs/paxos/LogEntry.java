@@ -8,9 +8,9 @@ import lombok.Data;
 @Data
 public class LogEntry {
 
-    private int slot;
-    private Ballot ballot;
-    private AMOCommand amoCommand;
+    private final int slot;
+    private final Ballot ballot;
+    private final AMOCommand amoCommand;
     private PaxosLogSlotStatus status;
 
     public LogEntry(LogEntry l) {

@@ -13,7 +13,7 @@ import lombok.Data;
 @Data
 public class PaxosLog {
 
-  public static final boolean INVARIANT_CHECKS = true;
+  public static final boolean INVARIANT_CHECKS = DebugUtils.PaxosLog_INVARIANTS;
 
   public static final int LOG_INITIAL = 1;
 
@@ -90,7 +90,7 @@ public class PaxosLog {
     existingLog.status(PaxosLogSlotStatus.CHOSEN);
 
     max_slot = Math.max(max_slot, slot);
-    System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
+    //System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
   }
 
   /**
@@ -154,11 +154,6 @@ public class PaxosLog {
     }
   }
 
-  public void fillHoles(Ballot leaderBallot){
-    for(int i = min_slot_unexecuted; i <= max_slot; i++){
-      log.putIfAbsent(i, new LogEntry(i, leaderBallot, null, PaxosLogSlotStatus.CHOSEN));
-    }
-  }
 
   public int getFirstNonCleared() {
     return min_slot;

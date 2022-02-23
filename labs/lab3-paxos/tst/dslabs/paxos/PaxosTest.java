@@ -1182,7 +1182,7 @@ public class PaxosTest extends BaseJUnitTest {
         initSearchState.addClientWorker(client(2),
                 KVStoreWorkload.builder().commands(append("foo", "y")).build());
 
-        searchSettings.maxDepth(1000).maxTimeSecs(20)
+        searchSettings.maxDepth(1000)//.maxTimeSecs(20)
                       .addInvariant(APPENDS_LINEARIZABLE)
                       .addInvariant(LOGS_CONSISTENT).addPrune(CLIENTS_DONE);
 
@@ -1252,7 +1252,7 @@ public class PaxosTest extends BaseJUnitTest {
         setupStates(1);
         initSearchState.addClientWorker(client(1), putAppendGetWorkload);
         searchSettings.clear().addInvariant(RESULTS_OK).addGoal(CLIENTS_DONE)
-                      .maxTimeSecs(10).maxDepth(6).singleThreaded(true);
+                      .maxTimeSecs(10).singleThreaded(true);
 
         final SearchState clientDone = findGoalMatchingStateFrom(initSearchState);
         assertEquals(6, clientDone.depth());
