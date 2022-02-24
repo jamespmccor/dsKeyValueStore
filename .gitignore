@@ -1,5 +1,6 @@
 # Compiled Java
 out/
+submit.tar.gz
 
 # Saved traces
 traces/
