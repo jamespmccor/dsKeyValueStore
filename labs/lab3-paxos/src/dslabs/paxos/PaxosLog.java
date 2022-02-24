@@ -59,6 +59,10 @@ public class PaxosLog implements Serializable {
   private void updateLog(int slot, LogEntry logEntry, boolean fastForward) {
     LogEntry existingLog = log.get(slot);
 
+    if (INVARIANT_CHECKS) {
+      assert logEntry.slot() >= min_slot;
+    }
+
     // skip validity checks if fast-forward
     if (INVARIANT_CHECKS && !fastForward) {
       if (existingLog != null) {
@@ -156,7 +160,11 @@ public class PaxosLog implements Serializable {
   public void garbageCollect(int to) {
     while (min_slot < to) {
       if (INVARIANT_CHECKS) {
-        assert log.get(min_slot).status() == PaxosLogSlotStatus.CHOSEN;
+        assert getLogStatus(min_slot) == PaxosLogSlotStatus.CLEARED || getLogStatus(min_slot) == PaxosLogSlotStatus.CHOSEN;
+      }
+
+      if (log.get(min_slot).status() == PaxosLogSlotStatus.CLEARED) {
+        continue;
       }
 
       LogEntry removed = log.remove(min_slot);

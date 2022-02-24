@@ -174,7 +174,7 @@ public class PaxosServer extends Node {
   }
 
   private void handlePaxos1B(Paxos1B m, Address sender) {
-    debugSenderMsg(sender, "recv ballot", m.toString(), "votes", votes.toString());
+    debugSenderMsg(sender, "recv ballot", m.ballot().toString(), "votes", votes.toString());
     if (m.accepted()) {
       if (m.ballot().compareTo(leaderBallot) > 0) {
         assert false;
@@ -189,7 +189,7 @@ public class PaxosServer extends Node {
             rebroadcastAcceptedLogEntries(log);
             sendHeartBeat();
           }
-          debugSenderMsg(sender, "recv ballot post", m.toString(), "votes", votes.toString());
+          debugSenderMsg(sender, "recv ballot post", m.ballot().toString(), "votes", votes.toString());
         }
       } else {
         debugSenderMsg(sender, "reject 1b, ballot", m.ballot().toString(), "sending", leaderBallot.toString());
