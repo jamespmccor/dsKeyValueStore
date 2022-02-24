@@ -13,8 +13,6 @@ import lombok.Data;
 @Data
 public class VoteTracker implements Serializable {
 
-  public static final boolean INVARIANT_CHECK = DebugUtils.VoteTracker_INVARIANTS;
-
   private final PaxosLog log;
   private final Address[] servers;
 
@@ -34,12 +32,6 @@ public class VoteTracker implements Serializable {
    * @return
    */
   public LogEntry createLogEntry(Ballot ballot, AMOCommand command) {
-    if (INVARIANT_CHECK) {
-      if (command != null) {
-        assert !log.commandExistsInLog(command) :
-            "duplicate entry in log " + command;
-      }
-    }
     LogEntry logEntry = new LogEntry(log.getLastNonEmpty() + 1, ballot, command, PaxosLogSlotStatus.ACCEPTED);
     return logEntry;
   }
@@ -73,13 +65,9 @@ public class VoteTracker implements Serializable {
           // reject old ballots
           return false;
         } else if (logEntry.ballot().compareTo(existingLogEntry.ballot()) == 0) {
-          if (INVARIANT_CHECK) {
-            assert logEntry.amoCommand() == null && existingLogEntry.amoCommand() == null || logEntry.amoCommand().equals(existingLogEntry.amoCommand());
-          }
           // add ballot, return t/f depending on whether already there
           boolean accepted = votes.put(logEntry.slot(), voter);
 
-//          System.out.println("accepted: " + votes.get(logEntry.slot()).toString());
           if (accepted) {
             confirmProposedLog(logEntry.slot());
           }

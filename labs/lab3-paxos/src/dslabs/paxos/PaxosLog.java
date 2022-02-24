@@ -17,8 +17,6 @@ import lombok.Data;
 @Data
 public class PaxosLog implements Serializable {
 
-  public static final boolean INVARIANT_CHECKS = DebugUtils.PaxosLog_INVARIANTS;
-
   public static final int LOG_INITIAL = 1;
 
   private final Map<Integer, LogEntry> log;
@@ -59,19 +57,6 @@ public class PaxosLog implements Serializable {
   private void updateLog(int slot, LogEntry logEntry, boolean fastForward) {
     LogEntry existingLog = log.get(slot);
 
-    if (INVARIANT_CHECKS) {
-      assert logEntry.slot() >= min_slot;
-    }
-
-    // skip validity checks if fast-forward
-    if (INVARIANT_CHECKS && !fastForward) {
-      if (existingLog != null) {
-        assert
-            logEntry.status().compareTo(existingLog.status()) > 0 || logEntry.ballot().compareTo(existingLog.ballot()) > 0 :
-            "can only go in order of status || can only be overwritten if in a higher round failed: " + logEntry + "\n\n" + this;
-      }
-    }
-
     if (existingLog != null && existingLog.amoCommand() != null) {
       // we want to remove the command at the slot actually
       commandToSlot.remove(existingLog.amoCommand(), slot);
@@ -87,13 +72,6 @@ public class PaxosLog implements Serializable {
 
   public void confirmLog(int slot) {
     LogEntry existingLog = log.get(slot);
-
-    // skip validity checks if fast-forward
-    if (INVARIANT_CHECKS) {
-      assert existingLog != null;
-      assert existingLog.status() == PaxosLogSlotStatus.ACCEPTED : "can only go in order of status";
-    }
-
     existingLog.status(PaxosLogSlotStatus.CHOSEN);
 
     max_slot = Math.max(max_slot, slot);
@@ -139,14 +117,6 @@ public class PaxosLog implements Serializable {
       if (logEntry == null) {
         updateLog(e.getKey(), e.getValue(), true);
       } else {
-        if (INVARIANT_CHECKS) {
-          // CHOSEN state check
-          if (logEntry.status() == PaxosLogSlotStatus.CHOSEN && e.getValue().status() == PaxosLogSlotStatus.CHOSEN) {
-            assert (logEntry.amoCommand() == null && e.getValue().amoCommand() == null) || logEntry.amoCommand()
-                .equals(e.getValue().amoCommand());
-          }
-        }
-
         // CHOSEN/ACCEPTED state
         if (logEntry.status() == PaxosLogSlotStatus.ACCEPTED && (
             e.getValue().ballot().compareTo(logEntry.ballot()) > 0
@@ -159,10 +129,6 @@ public class PaxosLog implements Serializable {
 
   public void garbageCollect(int to) {
     while (min_slot < to) {
-      if (INVARIANT_CHECKS) {
-        assert getLogStatus(min_slot) == PaxosLogSlotStatus.CLEARED || getLogStatus(min_slot) == PaxosLogSlotStatus.CHOSEN;
-      }
-
       if (log.get(min_slot).status() == PaxosLogSlotStatus.CLEARED) {
         continue;
       }

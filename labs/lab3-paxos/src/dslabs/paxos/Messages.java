@@ -14,7 +14,6 @@ class Paxos1A implements Message {
 
 @Data
 class Paxos1B implements Message {
-    private final boolean accepted; // vote granted / rejected
     private final Ballot ballot;
     private final PaxosLog log;
 }
