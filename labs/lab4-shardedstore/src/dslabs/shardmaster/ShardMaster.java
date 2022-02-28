@@ -4,103 +4,228 @@ import dslabs.framework.Address;
 import dslabs.framework.Application;
 import dslabs.framework.Command;
 import dslabs.framework.Result;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
+import org.apache.commons.lang3.SerializationUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 @ToString
 @EqualsAndHashCode
 public final class ShardMaster implements Application {
-    public static final int INITIAL_CONFIG_NUM = 0;
 
-    private final int numShards;
+  public static final int INITIAL_CONFIG_NUM = 0;
 
-    // Your code here...
+  private final Map<Integer, ShardConfig> configLog;  //configNum -> ShardConfig
+  private final Map<Integer, Set<Address>> replicaGroups; //groupID -> Set<servers>
+  private final int numShards;
 
-    public ShardMaster(int numShards) {
-        this.numShards = numShards;
-    }
+  private int configNum;
 
-    public interface ShardMasterCommand extends Command {
-    }
+  public ShardMaster(int numShards) {
+    this.numShards = numShards;
 
-    @Data
-    public static final class Join implements ShardMasterCommand {
-        private final int groupId;
-        private final Set<Address> servers;
-    }
+    replicaGroups = new TreeMap<>();
+    configNum = INITIAL_CONFIG_NUM - 1;
+    configLog = new HashMap<>();
+  }
 
-    @Data
-    public static final class Leave implements ShardMasterCommand {
-        private final int groupId;
-    }
+  public interface ShardMasterCommand extends Command {
 
-    @Data
-    public static final class Move implements ShardMasterCommand {
-        private final int groupId;
-        private final int shardNum;
-    }
+  }
 
-    @Data
-    public static final class Query implements ShardMasterCommand {
-        private final int configNum;
+  @Data
+  public static final class Join implements ShardMasterCommand {
 
-        @Override
-        public boolean readOnly() {
-            return true;
-        }
-    }
+    private final int groupId;
+    private final Set<Address> servers;
+  }
 
-    public interface ShardMasterResult extends Result {
-    }
+  @Data
+  public static final class Leave implements ShardMasterCommand {
 
-    @Data
-    public static final class Ok implements ShardMasterResult {
-    }
+    private final int groupId;
+  }
 
-    @Data
-    public static final class Error implements ShardMasterResult {
-    }
+  @Data
+  public static final class Move implements ShardMasterCommand {
 
-    @Data
-    public static final class ShardConfig implements ShardMasterResult {
-        private final int configNum;
+    private final int groupId;
+    private final int shardNum;
+  }
 
-        // groupId -> <group members, shard numbers>
-        private final Map<Integer, Pair<Set<Address>, Set<Integer>>> groupInfo;
+  @Data
+  public static final class Query implements ShardMasterCommand {
 
-    }
-
+    private final int configNum;
 
     @Override
-    public Result execute(Command command) {
-        if (command instanceof Join) {
-            Join join = (Join) command;
-
-            // Your code here...
-        }
-
-        if (command instanceof Leave) {
-            Leave leave = (Leave) command;
-
-            // Your code here...
-        }
-
-        if (command instanceof Move) {
-            Move move = (Move) command;
-
-            // Your code here...
-        }
-
-        if (command instanceof Query) {
-            Query query = (Query) command;
-
-            // Your code here...
-        }
-
-        throw new IllegalArgumentException();
+    public boolean readOnly() {
+      return true;
     }
+  }
+
+  public interface ShardMasterResult extends Result {
+
+  }
+
+  @Data
+  public static final class Ok implements ShardMasterResult {
+
+  }
+
+  @Data
+  public static final class Error implements ShardMasterResult {
+
+  }
+
+  @Data
+  @Builder
+  @AllArgsConstructor
+  public static final class ShardConfig implements ShardMasterResult {
+
+    private final int configNum;
+
+    // groupId -> <group members, shard numbers>
+    private final Map<Integer, Pair<Set<Address>, Set<Integer>>> groupInfo;
+
+    public ShardConfig(int configNum) {
+      this.configNum = configNum;
+      groupInfo = new TreeMap<>();
+    }
+  }
+
+  @Override
+  public Result execute(Command command) {
+    if (command instanceof Join) {
+      Join join = (Join) command;
+
+      if (replicaGroups.containsKey(join.groupId())) {
+        return new Error();
+      }
+
+      replicaGroups.put(join.groupId(), join.servers());
+      ShardConfig config = newConfig();
+
+      config.groupInfo().put(join.groupId(), new ImmutablePair<>(join.servers(), new HashSet<>()));
+      rebalance();
+
+      return new Ok();
+    }
+
+    if (command instanceof Leave) {
+      Leave leave = (Leave) command;
+
+      if (!replicaGroups.containsKey(leave.groupId())) {
+        return new Error();
+      }
+
+      ShardConfig config = newConfig();
+      replicaGroups.remove(leave.groupId());
+      config.groupInfo.remove(leave.groupId);
+      rebalance();
+
+      return new Ok();
+    }
+
+    if (command instanceof Move) {
+      Move move = (Move) command;
+
+      if (!replicaGroups.containsKey(move.groupId) //bad groupID
+          || move.shardNum() < 1 || move.shardNum() > numShards //bad shardNum
+          || configLog.get(configNum).groupInfo.get(move.groupId).getRight()
+          .contains(move.shardNum)) { //group already has shard
+        return new Error();
+      }
+
+      newConfig();
+      Iterator<Pair<Set<Address>, Set<Integer>>> iter = configLog.get(configNum).groupInfo().values().iterator();
+      while (!iter.next().getRight().remove(move.shardNum())) {}
+      configLog.get(configNum).groupInfo.get(move.groupId).getRight().add(move.shardNum);
+
+      return new Ok();
+    }
+
+    if (command instanceof Query) {
+      Query query = (Query) command;
+
+      if (query.configNum() == -1 && configNum >= INITIAL_CONFIG_NUM || query.configNum() > configNum) {
+        return configLog.get(configNum);
+      } else if (!configLog.containsKey(query.configNum())) {
+        return new Error();
+      } else {
+        return configLog.get(query.configNum());
+      }
+    }
+
+    throw new IllegalArgumentException();
+  }
+
+  private ShardConfig newConfig() {
+    ShardConfig config = ShardConfig.builder().configNum(++configNum).groupInfo(
+        SerializationUtils.clone(configLog.getOrDefault(configNum - 1, new ShardConfig(INITIAL_CONFIG_NUM - 1)))
+            .groupInfo()).build();
+    configLog.put(configNum, config);
+    return config;
+  }
+
+  private void rebalance() {
+    ShardConfig config = configLog.get(configNum);
+    int minFill = numShards / replicaGroups.size();
+    int extraFill = numShards % replicaGroups.size();
+
+    // calculate expected size of each groupId
+    List<Integer> expected = new ArrayList<>();
+    for (int i = 0; i < replicaGroups.size(); i++) {
+      if (extraFill > 0) {
+        expected.add(minFill + 1);
+      } else {
+        expected.add(minFill);
+      }
+      extraFill--;
+    }
+
+    Set<Integer> unusedVals = IntStream.rangeClosed(1, numShards).boxed().collect(Collectors.toSet());
+    List<Integer> removed = new ArrayList<>();
+
+    // take off extra
+    int i = 0;
+    for (Pair<Set<Address>, Set<Integer>> p : config.groupInfo().values()) {
+      Set<Integer> shards = p.getRight();
+      unusedVals.removeAll(shards);
+      while (shards.size() > expected.get(i)) {
+        int val = shards.iterator().next();
+        shards.remove(val);
+        removed.add(val);
+      }
+      i++;
+    }
+
+    // add set of unused numbers
+    removed.addAll(unusedVals);
+
+    // fill in holes
+    i = 0;
+    for (Pair<Set<Address>, Set<Integer>> p : config.groupInfo().values()) {
+      Set<Integer> shards = p.getRight();
+      while (shards.size() < expected.get(i)) {
+        shards.add(removed.remove(0));
+      }
+      i++;
+    }
+  }
 }
+

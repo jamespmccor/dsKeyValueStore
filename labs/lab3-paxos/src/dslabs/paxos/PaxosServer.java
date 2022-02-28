@@ -149,7 +149,11 @@ public class PaxosServer extends Node {
     } else if (log.commandExistsInLog(m.cmd())) {
       send2A(log.getLog(log.indexesOfCommand(m.cmd()).iterator().next()));
     } else {
+
       LogEntry logEntry = voteTracker.createLogEntry(getBallot(), m.cmd());
+
+      debugSenderMsg(sender, "new log entry @ ", Integer.toString(logEntry.slot()));
+
       voteTracker.addLogEntry(logEntry);
       send2A(logEntry);
     }
