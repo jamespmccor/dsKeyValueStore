@@ -187,17 +187,6 @@ public final class ShardMaster implements Application {
     int minFill = numShards / replicaGroups.size();
     int extraFill = numShards % replicaGroups.size();
 
-    // calculate expected size of each groupId
-    List<Integer> expected = new ArrayList<>();
-    for (int i = 0; i < replicaGroups.size(); i++) {
-      if (extraFill > 0) {
-        expected.add(minFill + 1);
-      } else {
-        expected.add(minFill);
-      }
-      extraFill--;
-    }
-
     Set<Integer> unusedVals = IntStream.rangeClosed(1, numShards).boxed().collect(Collectors.toSet());
     List<Integer> removed = new ArrayList<>();
 
@@ -206,7 +195,7 @@ public final class ShardMaster implements Application {
     for (Pair<Set<Address>, Set<Integer>> p : config.groupInfo().values()) {
       Set<Integer> shards = p.getRight();
       unusedVals.removeAll(shards);
-      while (shards.size() > expected.get(i)) {
+      while (shards.size() > minFill + ((extraFill - i) > 0 ? 1 : 0)) {
         int val = shards.iterator().next();
         shards.remove(val);
         removed.add(val);
@@ -221,7 +210,7 @@ public final class ShardMaster implements Application {
     i = 0;
     for (Pair<Set<Address>, Set<Integer>> p : config.groupInfo().values()) {
       Set<Integer> shards = p.getRight();
-      while (shards.size() < expected.get(i)) {
+      while (shards.size() < minFill + ((extraFill - i) > 0 ? 1 : 0)) {
         shards.add(removed.remove(0));
       }
       i++;
