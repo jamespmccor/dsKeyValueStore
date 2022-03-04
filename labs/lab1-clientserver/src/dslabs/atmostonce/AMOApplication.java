@@ -24,11 +24,11 @@ public final class AMOApplication<T extends Application>
 
     @Override
     public AMOResult execute(Command command) {
-        if (!(command instanceof AMOCommand)) {
+        if (!(command instanceof Request)) {
             throw new IllegalArgumentException();
         }
 
-        AMOCommand amoCommand = (AMOCommand) command;
+        Request amoCommand = (Request) command;
 
         if (alreadyExecuted(amoCommand)) {
             if (amoCommand.num() < clientMap.get(amoCommand.sender()).num()) {
@@ -48,14 +48,14 @@ public final class AMOApplication<T extends Application>
             throw new IllegalArgumentException();
         }
 
-        if (command instanceof AMOCommand) {
+        if (command instanceof Request) {
             return execute(command);
         }
 
         return application.execute(command);
     }
 
-    public boolean alreadyExecuted(AMOCommand amoCommand) {
+    public boolean alreadyExecuted(Request amoCommand) {
         return clientMap.containsKey(amoCommand.sender()) &&
                 clientMap.get(amoCommand.sender()).num() >= amoCommand.num();
     }

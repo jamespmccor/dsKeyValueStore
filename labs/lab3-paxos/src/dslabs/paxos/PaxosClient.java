@@ -1,6 +1,6 @@
 package dslabs.paxos;
 
-import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.Request;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
@@ -42,7 +42,7 @@ public final class PaxosClient extends Node implements Client {
        -----------------------------------------------------------------------*/
     @Override
     public synchronized void sendCommand(Command command) {
-        request = new PaxosRequest(new AMOCommand(seqNum, this.address(), command));
+        request = new PaxosRequest(new Request(seqNum, this.address(), command));
         result = null;
 
         resends = 0;

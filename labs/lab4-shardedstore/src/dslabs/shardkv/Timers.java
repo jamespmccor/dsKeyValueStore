@@ -5,9 +5,13 @@ import lombok.Data;
 
 @Data
 final class ClientTimer implements Timer {
-    static final int CLIENT_RETRY_MILLIS = 100;
+    static final int RETRY_MILLIS = 100;
+    private final ShardStoreRequest request;
+}
 
-    // Your code here...
+@Data
+final class ConfigurationTimer implements Timer {
+    static final int RETRY_MILLIS = 100;
 }
 
 // Your code here...

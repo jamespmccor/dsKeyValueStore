@@ -2,7 +2,7 @@ package dslabs.paxos;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
-import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.Request;
 import dslabs.framework.Address;
 import java.io.Serializable;
 import lombok.Data;
@@ -33,7 +33,7 @@ public class VoteTracker implements Serializable {
    * @param command
    * @return
    */
-  public LogEntry createLogEntry(Ballot ballot, AMOCommand command) {
+  public LogEntry createLogEntry(Ballot ballot, Request command) {
     if (INVARIANT_CHECK) {
       if (command != null) {
         assert !log.commandExistsInLog(command) :

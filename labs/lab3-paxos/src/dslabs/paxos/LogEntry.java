@@ -1,6 +1,6 @@
 package dslabs.paxos;
 
-import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.Request;
 import java.io.Serializable;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,7 +11,7 @@ public class LogEntry implements Serializable {
 
     private int slot;
     private Ballot ballot;
-    private AMOCommand amoCommand;
+    private Request amoCommand;
     private PaxosLogSlotStatus status;
 
     public LogEntry(LogEntry l) {

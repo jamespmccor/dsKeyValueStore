@@ -1,7 +1,7 @@
 package dslabs.paxos;
 
 import com.google.common.collect.Lists;
-import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.Request;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
@@ -245,7 +245,7 @@ public class PaxosTest extends BaseJUnitTest {
                         a, s, i, c));
             }
 
-            if (c instanceof AMOCommand) {
+            if (c instanceof Request) {
                 return new ImmutablePair<>(false,
                         String.format("%s returned an AMOCommand for slot %s",
                                 a, i));

@@ -5,7 +5,7 @@ import dslabs.framework.Command;
 import lombok.Data;
 
 @Data
-public final class AMOCommand implements Command {
+public final class Request implements Command {
     private final int num;
     private final Address sender;
     private final Command command;

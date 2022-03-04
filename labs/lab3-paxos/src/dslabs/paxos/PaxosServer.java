@@ -1,6 +1,7 @@
 package dslabs.paxos;
 
 import dslabs.atmostonce.AMOApplication;
+import dslabs.atmostonce.Request;
 import dslabs.framework.*;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -27,6 +28,7 @@ public class PaxosServer extends Node {
    * All servers in the Paxos group, including this one.
    */
   private final Address[] servers;
+  private Address parentAddress; //LAB 4
 
   private final AMOApplication<Application> app;
   private final VoteTracker voteTracker;
@@ -55,6 +57,19 @@ public class PaxosServer extends Node {
 
     minUnexecutedVals = new HashMap<>();
   }
+
+  public PaxosServer(Address address, Address[] servers, Address parentAddress) {
+    super(address); // 'address' is the address of this node
+    this.servers = servers;
+    this.parentAddress = parentAddress;
+    // 'parentAddress' is the address of the 'parent' ShardStoreServer
+    // Again, just call handleMessage(decision, this.parentAddress);
+    // Note: There is no app.
+    app = null;
+    voteTracker = null;
+    log = null;
+  }
+
 
   @Override
   public void init() {
@@ -93,7 +108,7 @@ public class PaxosServer extends Node {
    * return {@code null}. Otherwise, return the command this server has chosen or accepted, according to {@link
    * PaxosServer#status}.
    * <p>
-   * If clients wrapped commands in {@link dslabs.atmostonce.AMOCommand}, this method should unwrap them before
+   * If clients wrapped commands in {@link Request}, this method should unwrap them before
    * returning.
    * <p>
    * Log slots are numbered starting with 1.

@@ -2,9 +2,7 @@ package dslabs.primarybackup;
 
 import dslabs.framework.Message;
 import dslabs.atmostonce.AMOApplication;
-import dslabs.atmostonce.AMOCommand;
 import dslabs.atmostonce.AMOResult;
-import dslabs.framework.Address;
 import dslabs.framework.Application;
 import lombok.Data;
 
@@ -34,7 +32,7 @@ class ViewError implements Message {
    -----------------------------------------------------------------------*/
 @Data
 class Request implements Message {
-    private final AMOCommand amoCommand;
+    private final dslabs.atmostonce.Request amoCommand;
 }
 
 @Data
@@ -58,7 +56,7 @@ class StateTransferAck implements Message {
 class Forward extends Request {
     private final int seqNum;
 
-    public Forward(int seqNum, AMOCommand cmd){
+    public Forward(int seqNum, dslabs.atmostonce.Request cmd){
         super(cmd);
         this.seqNum = seqNum;
     }
