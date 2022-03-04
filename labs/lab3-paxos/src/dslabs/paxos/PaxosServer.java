@@ -1,7 +1,7 @@
 package dslabs.paxos;
 
 import dslabs.atmostonce.AMOApplication;
-import dslabs.atmostonce.Request;
+import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.*;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -108,7 +108,7 @@ public class PaxosServer extends Node {
    * return {@code null}. Otherwise, return the command this server has chosen or accepted, according to {@link
    * PaxosServer#status}.
    * <p>
-   * If clients wrapped commands in {@link Request}, this method should unwrap them before
+   * If clients wrapped commands in {@link AMOCommand}, this method should unwrap them before
    * returning.
    * <p>
    * Log slots are numbered starting with 1.

@@ -2,7 +2,7 @@ package dslabs.paxos;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import dslabs.atmostonce.Request;
+import dslabs.atmostonce.AMOCommand;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashMap;
@@ -22,7 +22,7 @@ public class PaxosLog implements Serializable {
   public static final int LOG_INITIAL = 1;
 
   private final Map<Integer, LogEntry> log;
-  private final Multimap<Request, Integer> commandToSlot;
+  private final Multimap<AMOCommand, Integer> commandToSlot;
 
   private int min_slot;
   private int max_slot;
@@ -201,11 +201,11 @@ public class PaxosLog implements Serializable {
    * @param amoCommand
    * @return true if null or in log
    */
-  public boolean commandExistsInLog(Request amoCommand) {
+  public boolean commandExistsInLog(AMOCommand amoCommand) {
     return commandToSlot.containsKey(amoCommand);
   }
 
-  public Collection<Integer> indexesOfCommand(Request command) {
+  public Collection<Integer> indexesOfCommand(AMOCommand command) {
     return commandToSlot.get(command);
   }
 

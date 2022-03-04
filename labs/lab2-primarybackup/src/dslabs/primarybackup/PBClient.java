@@ -1,6 +1,6 @@
 package dslabs.primarybackup;
 
-import dslabs.atmostonce.Request;
+import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
@@ -42,7 +42,7 @@ class PBClient extends Node implements Client {
     @Override
     public synchronized void sendCommand(Command command) {
         assert this.address() != null;
-        request = new dslabs.primarybackup.Request(new Request(seqNum, this.address(), command));
+        request = new dslabs.primarybackup.Request(new AMOCommand(seqNum, this.address(), command));
         result = null;
 
         if(currView != null && currView.primary() != null) {

@@ -1,7 +1,7 @@
 package dslabs.shardkv;
 
 import dslabs.atmostonce.AMOApplication;
-import dslabs.atmostonce.Request;
+import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Address;
 import dslabs.kvstore.KVStore;
 import dslabs.paxos.PaxosServer;
@@ -71,7 +71,7 @@ public class ShardStoreServer extends ShardStoreNode {
         addSubNode(paxosServer);
         paxosServer.init();
 
-        sendCommand(new Request(0, address(), new ShardMaster.Query(-1))); //TODO:change paxosserver to readonly queryies
+        sendCommand(new AMOCommand(0, address(), new ShardMaster.Query(-1))); //TODO:change paxosserver to readonly queryies
         set(new ConfigurationTimer(), ConfigurationTimer.RETRY_MILLIS);
 
     }
@@ -81,7 +81,7 @@ public class ShardStoreServer extends ShardStoreNode {
         Message Handlers
        -----------------------------------------------------------------------*/
     private void handleShardStoreRequest(ShardStoreRequest m, Address sender) {
-        process(m.request().command(), false);
+        process(m.AMOCommand().command(), false);
     }
 
     // Your code here...
@@ -103,7 +103,7 @@ public class ShardStoreServer extends ShardStoreNode {
     /* -------------------------------------------------------------------------
         Utils
        -----------------------------------------------------------------------*/
-    private void sendCommand(Request cmd) {
+    private void sendCommand(AMOCommand cmd) {
         if (cmd.command() instanceof ShardMaster.Query) {
             for(Address a: shardMasters()){
                 send(new ShardStoreRequest(cmd), a);

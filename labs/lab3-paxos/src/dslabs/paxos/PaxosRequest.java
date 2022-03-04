@@ -1,10 +1,10 @@
 package dslabs.paxos;
 
-import dslabs.atmostonce.Request;
+import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.Message;
 import lombok.Data;
 
 @Data
 public final class PaxosRequest implements Message {
-    private final Request cmd;
+    private final AMOCommand cmd;
 }
