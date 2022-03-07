@@ -2,6 +2,7 @@ package dslabs.paxos;
 
 import dslabs.atmostonce.AMOApplication;
 import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.AMOResult;
 import dslabs.framework.*;
 import dslabs.shardkv.PaxosDecision;
 import lombok.EqualsAndHashCode;
@@ -162,6 +163,9 @@ public class PaxosServer extends Node {
     if (!isLeader()) {
 //      debugMsg("ignored msg server state", serverState.toString(), m.toString());
       return;
+    }
+    if(m.cmd().readOnly()){
+      send(new PaxosReply(new AMOResult(m.cmd().num(), app.executeReadOnly(m.cmd()))), sender);
     }
 
     debugSenderMsg(sender, "ack paxos req num", Integer.toString(m.cmd().num()), m.toString());

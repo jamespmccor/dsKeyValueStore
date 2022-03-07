@@ -8,6 +8,7 @@ import dslabs.framework.Command;
 import dslabs.framework.Result;
 import dslabs.kvstore.KVStore;
 import dslabs.paxos.PaxosReply;
+import dslabs.paxos.PaxosRequest;
 import dslabs.shardmaster.ShardMaster;
 import java.util.HashMap;
 import lombok.EqualsAndHashCode;
@@ -102,6 +103,7 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
           }
         }
       }
+    } else if(m.result().result() instanceof ShardMaster.Error){ //ShardMaster not chosen initial config
     } else {
       throw new Error("unhandled");
     }
@@ -114,10 +116,11 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
   private synchronized void onClientTimer(ClientTimer t) {
     if (curConfig == null) {
       getShardMasterConfig();
+      set(t, ClientTimer.RETRY_MILLIS);
     } else if (request.equals(t.request()) && result == null) {
-      broadcast(request, commandToReplicaGroup(t.request().command()));
+      broadcast(request, commandToReplicaGroup(((AMOCommand)t.request().command()).command()));
+      set(t, ClientTimer.RETRY_MILLIS);
     }
-    set(t, ClientTimer.RETRY_MILLIS);
   }
 
   private synchronized void onConfigurationTimer(ConfigurationTimer t) {
@@ -140,6 +143,6 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
   }
 
   private void getShardMasterConfig() {
-    broadcastToShardMasters(new ShardStoreRequest(new ShardMaster.Query(-1)));
+    broadcastToShardMasters(new PaxosRequest(new AMOCommand(-1, address(), new ShardMaster.Query(-1))));
   }
 }
