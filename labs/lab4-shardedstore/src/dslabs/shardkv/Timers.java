@@ -14,4 +14,3 @@ final class ConfigurationTimer implements Timer {
     static final int RETRY_MILLIS = 100;
 }
 
-// Your code here...

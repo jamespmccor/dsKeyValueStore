@@ -1,5 +1,7 @@
 package dslabs.shardkv;
 
+import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.AMOResult;
 import dslabs.framework.Command;
 import dslabs.framework.Message;
 import dslabs.framework.Result;
@@ -16,8 +18,3 @@ final class ShardStoreReply implements Message {
     private final Result result;
 }
 
-@Data
-final class ShardStoreQuery implements Message {
-    private final Query query;
-}
-// Your code here...

@@ -102,9 +102,28 @@ public final class ShardMaster implements Application {
     // groupId -> <group members, shard numbers>
     private final Map<Integer, Pair<Set<Address>, Set<Integer>>> groupInfo;
 
+    //shardNum -> groupID
+    private final Map<Integer, Integer> shardToGroupID;
+
     public ShardConfig(int configNum) {
       this.configNum = configNum;
       groupInfo = new TreeMap<>();
+      shardToGroupID = new TreeMap<>();
+    }
+    public ShardConfig(int configNum, Map<Integer, Pair<Set<Address>, Set<Integer>>> groupInfo){
+      this.configNum = configNum;
+      this.groupInfo = groupInfo;
+      this.shardToGroupID = new TreeMap<>();
+      populateShardToGroupID(this);
+    }
+
+    private void populateShardToGroupID(ShardConfig config){
+      config.shardToGroupID.clear();
+      for(Integer groupID: config.groupInfo.keySet()){
+        for(Integer shardNum: config.groupInfo.get(groupID).getRight()){
+          config.shardToGroupID.put(shardNum, groupID);
+        }
+      }
     }
   }
 
@@ -122,6 +141,7 @@ public final class ShardMaster implements Application {
 
       config.groupInfo().put(join.groupId(), new ImmutablePair<>(join.servers(), new HashSet<>()));
       rebalance();
+      populateShardToGroupID();
 
       return new Ok();
     }
@@ -137,6 +157,7 @@ public final class ShardMaster implements Application {
       replicaGroups.remove(leave.groupId());
       config.groupInfo.remove(leave.groupId);
       rebalance();
+      populateShardToGroupID();
 
       return new Ok();
     }
@@ -155,6 +176,7 @@ public final class ShardMaster implements Application {
       Iterator<Pair<Set<Address>, Set<Integer>>> iter = configLog.get(configNum).groupInfo().values().iterator();
       while (!iter.next().getRight().remove(move.shardNum())) {}
       configLog.get(configNum).groupInfo.get(move.groupId).getRight().add(move.shardNum);
+      populateShardToGroupID();
 
       return new Ok();
     }
@@ -177,7 +199,7 @@ public final class ShardMaster implements Application {
   private ShardConfig newConfig() {
     ShardConfig config = ShardConfig.builder().configNum(++configNum).groupInfo(
         SerializationUtils.clone(configLog.getOrDefault(configNum - 1, new ShardConfig(INITIAL_CONFIG_NUM - 1)))
-            .groupInfo()).build();
+            .groupInfo()).shardToGroupID(new TreeMap<>()).build();
     configLog.put(configNum, config);
     return config;
   }
@@ -216,5 +238,16 @@ public final class ShardMaster implements Application {
       i++;
     }
   }
+
+  private void populateShardToGroupID(){
+    ShardConfig config = configLog.get(configNum);
+    config.shardToGroupID.clear();
+    for(Integer groupID: config.groupInfo.keySet()){
+      for(Integer shardNum: config.groupInfo.get(groupID).getRight()){
+        config.shardToGroupID.put(shardNum, groupID);
+      }
+    }
+  }
+
 }
 

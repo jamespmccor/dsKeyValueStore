@@ -3,6 +3,7 @@ package dslabs.paxos;
 import dslabs.atmostonce.AMOApplication;
 import dslabs.atmostonce.AMOCommand;
 import dslabs.framework.*;
+import dslabs.shardkv.PaxosDecision;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
@@ -66,8 +67,15 @@ public class PaxosServer extends Node {
     // Again, just call handleMessage(decision, this.parentAddress);
     // Note: There is no app.
     app = null;
-    voteTracker = null;
-    log = null;
+
+    log = new PaxosLog();
+    voteTracker = new VoteTracker(servers, log);
+
+    serverState = ServerState.ELECTING_LEADER;
+    votes = new HashSet<>();
+    leaderBallot = new Ballot(INITIAL_BALLOT_NUMBER, servers[0]);
+
+    minUnexecutedVals = new HashMap<>();
   }
 
 
@@ -157,7 +165,7 @@ public class PaxosServer extends Node {
     }
 
     debugSenderMsg(sender, "ack paxos req num", Integer.toString(m.cmd().num()), m.toString());
-    if (app.alreadyExecuted(m.cmd())) {
+    if (parentAddress == null && app.alreadyExecuted(m.cmd())) {
       if (app.execute(m.cmd()) != null) {
         send(new PaxosReply(app.execute(m.cmd())), sender);
       }
@@ -379,11 +387,15 @@ public class PaxosServer extends Node {
     LogEntry cur = log.getAndIncrementFirstUnexecuted();
     while (cur != null) {
       if (cur.amoCommand() != null) {
+        if(parentAddress == null) {
 //        debugMsg("\texecuting log for slot", Integer.toString(cur.slot()));
-        PaxosReply reply = new PaxosReply(app.execute(cur.amoCommand()));
-        if (isLeader()) {
+          PaxosReply reply = new PaxosReply(app.execute(cur.amoCommand()));
+          if (isLeader()) {
 //          debugMsg("\tsending res for slot", Integer.toString(cur.slot()));
-          send(reply, cur.amoCommand().sender());
+            send(reply, cur.amoCommand().sender());
+          }
+        } else {
+          handleMessage(new PaxosDecision(cur.amoCommand()), parentAddress);
         }
       }
       cur = log.getAndIncrementFirstUnexecuted();
