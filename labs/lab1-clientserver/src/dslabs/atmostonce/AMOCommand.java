@@ -9,4 +9,8 @@ public final class AMOCommand implements Command {
     private final int num;
     private final Address sender;
     private final Command command;
+    @Override
+    public boolean readOnly(){
+        return command().readOnly();
+    }
 }

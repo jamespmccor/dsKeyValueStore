@@ -43,16 +43,16 @@ public final class AMOApplication<T extends Application>
         return res;
     }
 
-    public Result executeReadOnly(Command command) {
+    public Result executeReadOnly(AMOCommand command) {
         if (!command.readOnly()) {
             throw new IllegalArgumentException();
         }
+//
+//        if (command instanceof AMOCommand) {
+//            return execute(command);
+//        }
 
-        if (command instanceof AMOCommand) {
-            return execute(command);
-        }
-
-        return application.execute(command);
+        return application.execute(command.command());
     }
 
     public boolean alreadyExecuted(AMOCommand amoCommand) {

@@ -97,7 +97,7 @@ public class PaxosLog implements Serializable {
     existingLog.status(PaxosLogSlotStatus.CHOSEN);
 
     max_slot = Math.max(max_slot, slot);
-//    System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
+    //System.out.println("confirming log slot " + slot + " " + log.get(slot).toString());
   }
 
   /**

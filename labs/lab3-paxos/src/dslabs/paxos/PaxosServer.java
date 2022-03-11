@@ -160,15 +160,16 @@ public class PaxosServer extends Node {
       Message Handlers
      -----------------------------------------------------------------------*/
   private void handlePaxosRequest(PaxosRequest m, Address sender) {
-    if (!isLeader()) {
-//      debugMsg("ignored msg server state", serverState.toString(), m.toString());
+    if (!isLeader() ) {
+      //if(parentAddress != null) System.out.println("ignored msg server state "+ serverState.toString()+ " "+ m.toString());
       return;
     }
+    debugSenderMsg(sender, "ack paxos req num", Integer.toString(m.cmd().num()), m.toString());
     if(m.cmd().readOnly()){
-      send(new PaxosReply(new AMOResult(m.cmd().num(), app.executeReadOnly(m.cmd()))), sender);
+      send(new PaxosReply(app.executeReadOnly(m.cmd())), sender);
+      return;
     }
 
-    debugSenderMsg(sender, "ack paxos req num", Integer.toString(m.cmd().num()), m.toString());
     if (parentAddress == null && app.alreadyExecuted(m.cmd())) {
       if (app.execute(m.cmd()) != null) {
         send(new PaxosReply(app.execute(m.cmd())), sender);
@@ -290,7 +291,7 @@ public class PaxosServer extends Node {
     if (isElectingLeader()) {
       return;
     }
-//    debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
+    debugSenderMsg(sender, "ack 2b", "for entry", m.entry().toString());
     if (!isLeader() || log.getLogStatus(m.entry().slot()) == PaxosLogSlotStatus.CLEARED) {
 //      debugSenderMsg(sender, "ignored b/c not leader");
       return;
@@ -387,15 +388,15 @@ public class PaxosServer extends Node {
        -----------------------------------------------------------------------*/
 
   private void executeLog() {
-//    debugMsg("executing log");
+    debugMsg("executing log");
     LogEntry cur = log.getAndIncrementFirstUnexecuted();
     while (cur != null) {
       if (cur.amoCommand() != null) {
         if(parentAddress == null) {
-//        debugMsg("\texecuting log for slot", Integer.toString(cur.slot()));
+          debugMsg("\texecuting log for slot", Integer.toString(cur.slot()));
           PaxosReply reply = new PaxosReply(app.execute(cur.amoCommand()));
           if (isLeader()) {
-//          debugMsg("\tsending res for slot", Integer.toString(cur.slot()));
+            debugMsg("\tsending res for slot", Integer.toString(cur.slot()));
             send(reply, cur.amoCommand().sender());
           }
         } else {

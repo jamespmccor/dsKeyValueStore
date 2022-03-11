@@ -1,19 +1,21 @@
 package dslabs.shardkv;
 
 import dslabs.atmostonce.AMOApplication;
+import dslabs.framework.Address;
 import dslabs.framework.Command;
 import dslabs.framework.Result;
 import dslabs.kvstore.KVStore;
 import lombok.Data;
 import org.checkerframework.checker.units.qual.C;
 
+import java.util.Collection;
 import java.util.Map;
 
 
 @Data
 final class ShardMove implements Command {
     private final int configNum;
-    private final int group;
+    private final Collection<Address> group;
     private final Map<Integer, AMOApplication<KVStore>> shardsToMove;
 }
 

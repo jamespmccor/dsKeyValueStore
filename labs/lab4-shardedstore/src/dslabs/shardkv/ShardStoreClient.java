@@ -10,6 +10,9 @@ import dslabs.kvstore.KVStore;
 import dslabs.paxos.PaxosReply;
 import dslabs.paxos.PaxosRequest;
 import dslabs.shardmaster.ShardMaster;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -22,6 +25,9 @@ import java.util.Set;
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class ShardStoreClient extends ShardStoreNode implements Client {
+
+  public static final boolean PRINT_DEBUG = false;
+
 
   private final Map<Integer, Set<Address>> shardMappings;
 
@@ -59,6 +65,7 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
 
     if (curConfig != null) {
       broadcast(request, commandToReplicaGroup(command));
+      debugMsg("sending request " + seqNum);
     } else {
       getShardMasterConfig();
     }
@@ -84,15 +91,16 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
       Message Handlers
      -----------------------------------------------------------------------*/
   private synchronized void handleShardStoreReply(ShardStoreReply m, Address sender) {
-    if (((AMOCommand) (request.command())).num() == ((AMOResult) (m.result())).num()) {
+    if (!hasResult() && ((AMOCommand) (request.command())).num() == ((AMOResult) (m.result())).num()) {
       result = ((AMOResult) (m.result())).result();
       notify();
     }
   }
 
   private synchronized void handlePaxosReply(PaxosReply m, Address sender) {
-    if (m.result().result() instanceof ShardMaster.ShardConfig) {
-      ShardMaster.ShardConfig config = (ShardMaster.ShardConfig) m.result().result();
+    if (m.result() instanceof ShardMaster.ShardConfig) {
+      ShardMaster.ShardConfig config = (ShardMaster.ShardConfig) m.result();
+      debugSenderMsg(sender, "ack config ", Integer.toString(config.configNum()));
       if (curConfig == null || config.configNum() > curConfig.configNum()) {
         curConfig = config;
         shardMappings.clear();
@@ -103,7 +111,7 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
           }
         }
       }
-    } else if(m.result().result() instanceof ShardMaster.Error){ //ShardMaster not chosen initial config
+    } else if(m.result() instanceof ShardMaster.Error){ //ShardMaster not chosen initial config
     } else {
       throw new Error("unhandled");
     }
@@ -118,7 +126,10 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
       getShardMasterConfig();
       set(t, ClientTimer.RETRY_MILLIS);
     } else if (request.equals(t.request()) && result == null) {
+      debugMsg("resending request " + seqNum);
+
       broadcast(request, commandToReplicaGroup(((AMOCommand)t.request().command()).command()));
+
       set(t, ClientTimer.RETRY_MILLIS);
     }
   }
@@ -144,5 +155,21 @@ public class ShardStoreClient extends ShardStoreNode implements Client {
 
   private void getShardMasterConfig() {
     broadcastToShardMasters(new PaxosRequest(new AMOCommand(-1, address(), new ShardMaster.Query(-1))));
+  }
+
+    /* -------------------------------------------------------------------------
+    Debug
+    -----------------------------------------------------------------------*/
+
+  private void debugSenderMsg(Address sender, String... msgs) {
+    debugMsg("<-", sender.toString(), String.join(" ", msgs));
+  }
+
+  private static final SimpleDateFormat sdf2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+
+  private void debugMsg(String... msgs) {
+    if (PRINT_DEBUG) {
+      System.out.println(sdf2.format(new Date()) + " " + this.address().toString() + ": " + String.join(" ", msgs));
+    }
   }
 }

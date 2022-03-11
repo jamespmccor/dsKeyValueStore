@@ -34,7 +34,7 @@ public class KVStore implements Application {
 
         @Override
         public boolean readOnly() {
-            return true;
+            return false;
         }
     }
 

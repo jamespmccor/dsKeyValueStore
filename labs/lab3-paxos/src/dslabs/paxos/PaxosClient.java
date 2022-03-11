@@ -1,6 +1,7 @@
 package dslabs.paxos;
 
 import dslabs.atmostonce.AMOCommand;
+import dslabs.atmostonce.AMOResult;
 import dslabs.framework.Address;
 import dslabs.framework.Client;
 import dslabs.framework.Command;
@@ -69,9 +70,15 @@ public final class PaxosClient extends Node implements Client {
         Message Handlers
        -----------------------------------------------------------------------*/
     private synchronized void handlePaxosReply(PaxosReply m, Address sender) {
-        debugSenderMsg(sender,"ack msg", m.result() == null ? "null" : Integer.toString(m.result().num()));
-        if (request.cmd().num() == m.result().num()) {
-            result = m.result().result();
+        AMOResult res;
+        if(m.result() instanceof AMOResult){
+            res = (AMOResult) m.result(); //paxos client doesn't send readOnly commands
+        } else{ //configController sent Query
+            res = new AMOResult(request.cmd().num(), m.result());
+        }
+        debugSenderMsg(sender,"ack msg", m.result() == null ? "null" : Integer.toString(res.num()));
+        if (request.cmd().num() == res.num()) {
+            result = res.result();
             notify();
         }
     }

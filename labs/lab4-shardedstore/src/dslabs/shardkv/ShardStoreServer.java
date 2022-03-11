@@ -2,7 +2,6 @@ package dslabs.shardkv;
 
 import dslabs.atmostonce.AMOApplication;
 import dslabs.atmostonce.AMOCommand;
-import dslabs.atmostonce.AMOResult;
 import dslabs.framework.Address;
 import dslabs.framework.Command;
 import dslabs.framework.Message;
@@ -15,13 +14,18 @@ import dslabs.shardmaster.ShardMaster;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class ShardStoreServer extends ShardStoreNode {
+
+    public static final boolean PRINT_DEBUG = false;
     private final static int DEFAULT_ADDRESS = 0;
+
+    private long stateTransferMs;
 
     private final Address[] group;
     private final int groupId;
@@ -49,9 +53,6 @@ public class ShardStoreServer extends ShardStoreNode {
         config = new ShardMaster.ShardConfig(ShardMaster.INITIAL_CONFIG_NUM - 1);
         thingsNeeded = new HashSet<>();
         reconfig = false;
-
-
-
     }
 
     @Override
@@ -81,6 +82,7 @@ public class ShardStoreServer extends ShardStoreNode {
     private void handleShardStoreRequest(ShardStoreRequest m, Address sender) {
         if(m.command() instanceof AMOCommand
         && checkAMOCommand((AMOCommand) m.command())){
+            debugSenderMsg(sender, "ack req " + ((AMOCommand) m.command()).num());
             processAMOCommand((AMOCommand)m.command(), false);
         } else if(m.command() instanceof ShardMove){
             if(checkShardMove((ShardMove) m.command())){
@@ -100,9 +102,10 @@ public class ShardStoreServer extends ShardStoreNode {
 
     private void handlePaxosReply(PaxosReply m, Address sender){
         assert isShardMaster(sender);
-        Result res = m.result().result();
+        Result res = m.result();
         if(res instanceof ShardMaster.ShardConfig
                 && checkNewConfig((ShardMaster.ShardConfig) res)){
+            debugSenderMsg(sender, "ack config num ", Integer.toString(((ShardMaster.ShardConfig) res).configNum()));
             processNewConfig((ShardMaster.ShardConfig) res, false);
         }
     }
@@ -136,7 +139,7 @@ public class ShardStoreServer extends ShardStoreNode {
     private void onConfigurationTimer(ConfigurationTimer t){
         //TODO:maybe do something different if reconfig == true
         if(config.configNum() < ShardMaster.INITIAL_CONFIG_NUM){
-            sendQuery(new ShardMaster.Query(-1));
+            sendQuery(new ShardMaster.Query(ShardMaster.INITIAL_CONFIG_NUM));
         } else{
             sendQuery(new ShardMaster.Query(config.configNum() + 1));
         }
@@ -159,12 +162,15 @@ public class ShardStoreServer extends ShardStoreNode {
         AMOApplication<KVStore> app = shards.get(keyToShard(((KVStore.SingleKeyCommand)cmd.command()).key()));
         if(app.alreadyExecuted(cmd)){
             if(app.execute(cmd) != null) send(new ShardStoreReply(app.execute(cmd)), cmd.sender());
+            debugMsg("resending req " + cmd.num() + " to "+cmd.sender());
+            return;
         }
         if(!replicated){
-            handleMessage(new PaxosRequest(cmd), paxosAddress);
+            handleMessage(new PaxosRequest(new AMOCommand(cmd.num(), cmd.sender(), cmd)), paxosAddress);
             return;
         }
         send(new ShardStoreReply(app.execute(cmd)), cmd.sender());
+        debugMsg("sent req " + cmd.num() + " to " + cmd.sender());
     }
     private void processShardMove(ShardMove move, boolean replicated){
         if(!replicated){
@@ -178,6 +184,7 @@ public class ShardStoreServer extends ShardStoreNode {
         sendShardMoveAck(move.group());
         if(thingsNeeded.isEmpty()){
             reconfig = false;
+            debugMsg(System.currentTimeMillis() - stateTransferMs + " ms to get ShardMoves on config " + config.configNum());
         }
     }
 
@@ -194,10 +201,12 @@ public class ShardStoreServer extends ShardStoreNode {
         thingsNeeded.remove(ack.group());
         if(thingsNeeded.isEmpty()){
             reconfig = false;
+            debugMsg(System.currentTimeMillis() - stateTransferMs + " ms to get ShardMoveAcks on config " + config.configNum());
         }
     }
 
     private void processNewConfig(ShardMaster.ShardConfig newConfig, boolean replicated){
+        stateTransferMs = System.currentTimeMillis();
         if(!replicated){
             handleMessage(
                     new PaxosRequest(
@@ -207,23 +216,31 @@ public class ShardStoreServer extends ShardStoreNode {
                     paxosAddress);
             return;
         }
-        reconfig = true;
+
         config = newConfig;
+
+        if(config.groupInfo().get(groupId) == null && shards.size() == 0) return; //not in this config
+
+        reconfig = true;
         if(config.configNum() == ShardMaster.INITIAL_CONFIG_NUM){
             for(Integer i: config.groupInfo().get(groupId).getRight()){
                 shards.put(i, new AMOApplication<>(new KVStore()));
             }
+            reconfig = false;
+            debugMsg("set config " + ShardMaster.INITIAL_CONFIG_NUM);
             return;
         }
-        if(shards.size() > newConfig.groupInfo().get(groupId).getRight().size()){ //Sending shards
+        if(newConfig.groupInfo().get(groupId) == null
+        || shards.size() > newConfig.groupInfo().get(groupId).getRight().size()){ //Sending shards
             Set<Integer> toMove = (new HashSet<>(shards.keySet()));
-            toMove.removeAll(newConfig.groupInfo().get(groupId).getRight());
+            if(newConfig.groupInfo().get(groupId) != null)
+                toMove.removeAll(newConfig.groupInfo().get(groupId).getRight());
             thingsNeeded.clear();
             for(Integer shardNum: toMove){
                 thingsNeeded.add(newConfig.shardToGroupID().get(shardNum));
             }
             for(Integer groupIDNeeded: thingsNeeded){
-                ShardMove move = new ShardMove(newConfig.configNum(), groupId, new HashMap<>());
+                ShardMove move = new ShardMove(newConfig.configNum(), Arrays.asList(group), new HashMap<>());
                 Set<Integer> shardNums = new HashSet<>(shards.keySet());
                 shardNums.retainAll(newConfig.groupInfo().get(groupIDNeeded).getRight());
 
@@ -234,15 +251,22 @@ public class ShardStoreServer extends ShardStoreNode {
                 sendShardStore(req, groupIDNeeded);
                 set(new ClientTimer(req), ClientTimer.RETRY_MILLIS); //Maybe not needed?
             }
+
+            debugMsg(System.currentTimeMillis() - stateTransferMs + " ms to send ShardMoves on config " + config.configNum());
+            stateTransferMs = System.currentTimeMillis();
+
         } else if(shards.size() < newConfig.groupInfo().get(groupId).getRight().size()){ //Receiving shards
             thingsNeeded = new HashSet<>(newConfig.groupInfo().get(groupId).getRight());
             thingsNeeded.removeAll(shards.keySet());
+        } else{
+            reconfig = false;
         }
     }
 
     private boolean checkAMOCommand(AMOCommand cmd){
-        return !reconfig
-                && keyToShard(((KVStore.SingleKeyCommand)cmd.command()).key()) == groupId;
+        return config.configNum() >= ShardMaster.INITIAL_CONFIG_NUM
+                && !reconfig
+                && shards.containsKey(keyToShard(((KVStore.SingleKeyCommand)cmd.command()).key()));
     }
     private boolean checkShardMove(ShardMove move){
         return reconfig
@@ -269,7 +293,13 @@ public class ShardStoreServer extends ShardStoreNode {
             send(m, a);
         }
     }
-    private void sendShardMoveAck(int id){
+    private void sendShardStore(Message m, Collection<Address> id){
+        for(Address a: id){
+            send(m, a);
+        }
+    }
+
+    private void sendShardMoveAck(Collection<Address> id){
         sendShardStore(new ShardStoreReply(new ShardMoveAck(config.configNum(), groupId)), id);
     }
 
@@ -277,12 +307,32 @@ public class ShardStoreServer extends ShardStoreNode {
         return num == config.configNum();
     }
 
+    private Address getDefaultAddress(Collection<Address> id){
+        return (Address) id.toArray()[DEFAULT_ADDRESS];
+    }
     private Address getDefaultAddress(int id){
-        return (Address)config.groupInfo().get(id).getLeft().toArray()[DEFAULT_ADDRESS];
+        return (Address) config.groupInfo().get(id).getLeft().toArray()[DEFAULT_ADDRESS];
     }
 
 
     private boolean isShardMaster(Address address){
         return Arrays.asList(shardMasters()).contains(address);
+    }
+
+
+    /* -------------------------------------------------------------------------
+    Debug
+    -----------------------------------------------------------------------*/
+
+    private void debugSenderMsg(Address sender, String... msgs) {
+        debugMsg("<-", sender.toString(), String.join(" ", msgs));
+    }
+
+    private static final SimpleDateFormat sdf2 = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+
+    private void debugMsg(String... msgs) {
+        if (PRINT_DEBUG) {
+            System.out.println(sdf2.format(new Date()) + " " + this.address().toString() + ": " + String.join(" ", msgs));
+        }
     }
 }
