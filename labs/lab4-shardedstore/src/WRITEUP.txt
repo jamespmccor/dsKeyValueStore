@@ -1,12 +1,30 @@
 Lab 4 Writeup
 
-Partner 1 Name, NetID: 
-Partner 2 Name, NetID: 
+Partner 1 Name, NetID:  James McCormick, jpmccor
+Partner 2 Name, NetID: Jevin Gu, jevin
 
 Brief description of design:
+- CHANGES TO PREVIOUS LABS
+    - Added readOnly support to PaxosServer, don't propose readOnly commands
+    - Changed the meaning of Command.readOnly() to be non-linearizable read
+    - Added support for parent nodes
+        - instead of executing commands lets the parent handle them
+- ShardMaster
+    - General workflow
+        - Create a new config that copies the last config
+        - Add or remove replica groups
+        - call rebalance function to move shards efficiently
+- ShardStoreClient
+    - Copy of lab2's client design
+- ShardStoreServer
+    - reused debugging framework from lab3
+    - copied implementation from section slides
 
 
-Hours spent on the lab: 
+
+Hours spent on the lab: 18
+ - didn't do part 3
 
 
 Any feedback about the lab:
+ - since we decided to not do part 3, this lab felt very manageable
